@@ -1,6 +1,6 @@
-# DDR Timing Atlas
+# tCK Atlas
 
-一个离线可用的 DDR 时序参数百科。用波形、测量括号和读数卡解释参数从哪里起算、到哪里结束，以及它和相邻时序之间的关系。界面提供亮色 / 暗色两套主题，正文、波形标注和换算器读数都按可读尺寸重新排版。
+**DDR timing, mapped.** 一个离线可用的 DDR4 / DDR5 时序参数百科。用波形、测量括号和读数卡解释参数从哪里起算、到哪里结束，以及它和相邻时序之间的关系。界面提供亮色 / 暗色两套主题，正文、波形标注和换算器读数都按可读尺寸重新排版。
 
 ![参数图谱（亮色主题）](docs/atlas.png)
 
@@ -94,7 +94,7 @@ python -m http.server 8080
 ## 目录结构
 
 ```text
-ddr-timing/
+tck-atlas/
 ├─ index.html   # 页面骨架、图标、三个视图容器、主题预加载
 ├─ data.js      # 16 个参数、分类、完整时序、换算器档位
 ├─ app.js       # 路由、参数页、SVG 波形渲染、换算器、主题切换
@@ -170,7 +170,7 @@ ddr-timing/
 ## 主题实现
 
 - `theme.css` 用 `:root` 和 `html[data-theme="dark"]` 分别定义两套颜色令牌，避免复制整套布局。
-- `index.html` 在样式表之前执行一小段内联脚本，读取 `ddr-atlas-theme` 或系统偏好，先设置 `data-theme`，减少首屏闪烁。
+- `index.html` 在样式表之前执行一小段内联脚本，读取 `tck-atlas-theme`（兼容旧的 `ddr-atlas-theme`）或系统偏好，先设置 `data-theme`，减少首屏闪烁。
 - `app.js` 只负责切换主题、更新按钮语义和持久化；波形通过 `--wave-*` 等 CSS 变量跟着主题变化。
 - 主题按钮带 `aria-label`、`title` 和 `aria-pressed`；顶栏、侧栏和移动端目录保持键盘可达。
 

@@ -1,4 +1,4 @@
-/* DDR Timing Atlas — application shell, waveform renderer and calculator. */
+/* tCK Atlas — application shell, waveform renderer and calculator. */
 (function () {
   'use strict';
 
@@ -30,7 +30,8 @@
   const sidebarClose = $('#sidebarClose');
   const themeToggle = $('#themeToggle');
   const toast = $('#toast');
-  const THEME_KEY = 'ddr-atlas-theme';
+  const THEME_KEY = 'tck-atlas-theme';
+  const LEGACY_THEME_KEY = 'ddr-atlas-theme';
 
   const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   const esc = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (char) => ESCAPES[char]);
@@ -64,11 +65,22 @@
 
   function storedTheme() {
     try {
-      const value = window.localStorage.getItem(THEME_KEY);
+      const value = window.localStorage.getItem(THEME_KEY) || window.localStorage.getItem(LEGACY_THEME_KEY);
       return value === 'light' || value === 'dark' ? value : '';
     } catch (error) {
       return '';
     }
+  }
+
+  function migrateThemePreference() {
+    try {
+      const current = window.localStorage.getItem(THEME_KEY);
+      const legacy = window.localStorage.getItem(LEGACY_THEME_KEY);
+      if (!current && (legacy === 'light' || legacy === 'dark')) {
+        window.localStorage.setItem(THEME_KEY, legacy);
+      }
+      if (legacy) window.localStorage.removeItem(LEGACY_THEME_KEY);
+    } catch (error) {}
   }
 
   function currentTheme() {
@@ -92,11 +104,15 @@
       if (use) use.setAttribute('href', next === 'dark' ? '#i-sun' : '#i-moon');
     }
     if (persist) {
-      try { window.localStorage.setItem(THEME_KEY, next); } catch (error) {}
+      try {
+        window.localStorage.setItem(THEME_KEY, next);
+        window.localStorage.removeItem(LEGACY_THEME_KEY);
+      } catch (error) {}
     }
   }
 
   function initTheme() {
+    migrateThemePreference();
     applyTheme(currentTheme(), false);
     if (!themeToggle) return;
     themeToggle.addEventListener('click', () => {
@@ -264,13 +280,13 @@
 
     if (route.view === 'atlas') {
       mountAtlas(ui.activeParam);
-      document.title = `${byId.get(ui.activeParam).symbol} · ${byId.get(ui.activeParam).nameZh} | DDR Timing Atlas`;
+      document.title = `${byId.get(ui.activeParam).symbol} · ${byId.get(ui.activeParam).nameZh} | tCK Atlas`;
     } else if (route.view === 'sequence') {
       mountSequence();
-      document.title = '一次读取的完整时序 | DDR Timing Atlas';
+      document.title = '一次读取的完整时序 | tCK Atlas';
     } else {
       mountCalculator();
-      document.title = 'ns ↔ tCK 时序换算器 | DDR Timing Atlas';
+      document.title = 'ns ↔ tCK 时序换算器 | tCK Atlas';
     }
 
     window.scrollTo(0, 0);

@@ -1,5 +1,5 @@
 /* =====================================================================
-   DDR TIMING ATLAS — theme layer
+   tCK ATLAS — theme layer
    Light "lab paper" is the default; deep "night bench" is the paired
    dark theme. Loaded after styles.css so it can retune the legacy shell
    without changing the data or the waveform renderer.

@@ -3,14 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="DDR Timing Atlas：用可交互动时序波形解释 DDR4 / DDR5 关键时序参数。">
+  <meta name="description" content="tCK Atlas：用可交互的时序波形解释 DDR4 / DDR5 关键时序参数。">
   <meta name="theme-color" content="#f2f6fb">
-  <title>DDR Timing Atlas · 时序参数图谱</title>
+  <title>tCK Atlas · DDR4 / DDR5 时序参数图谱</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2309131c'/%3E%3Cpath d='M15 40V26h8v14h8V18h8v22h8V30h4' fill='none' stroke='%23f4b860' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script>
     (function () {
       var saved = null;
-      try { saved = window.localStorage.getItem('ddr-atlas-theme'); } catch (error) {}
+      try {
+        saved = window.localStorage.getItem('tck-atlas-theme') || window.localStorage.getItem('ddr-atlas-theme');
+      } catch (error) {}
       var theme = saved === 'light' || saved === 'dark'
         ? saved
         : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
@@ -87,7 +89,7 @@
       <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开参数目录" aria-expanded="false" aria-controls="sidebar">
         <svg><use href="#i-menu"></use></svg>
       </button>
-      <a class="brand" href="#/p/trcd" aria-label="DDR Timing Atlas 首页">
+      <a class="brand" href="#/p/trcd" aria-label="tCK Atlas 首页">
         <span class="brand__mark" aria-hidden="true">
           <svg viewBox="0 0 40 40">
             <rect x="5.5" y="5.5" width="29" height="29" rx="7"></rect>
@@ -96,8 +98,8 @@
           </svg>
         </span>
         <span class="brand__copy">
-          <strong>DDR TIMING</strong>
-          <span>ATLAS <i>v1.0</i></span>
+          <strong>tCK ATLAS</strong>
+          <span>DDR TIMING <i>v1.0</i></span>
         </span>
       </a>
     </div>

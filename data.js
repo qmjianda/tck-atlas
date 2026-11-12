@@ -1,4 +1,4 @@
-/* DDR Timing Atlas — data model and teaching traces.
+/* tCK Atlas — data model and teaching traces.
    The waveforms are deliberately schematic. Timing relationships are kept,
    while absolute cycle counts are illustrative and not tied to one JEDEC bin. */
 (function () {
