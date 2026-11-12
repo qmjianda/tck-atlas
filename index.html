@@ -3,15 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="tCK Atlas：用可交互的时序波形解释 DDR4 / DDR5 关键时序参数。">
+  <meta name="description" content="tCK Atlas：用可交互的时序波形解释 DDR4 / DDR5 关键时序参数。" data-i18n-content="meta.description">
   <meta name="theme-color" content="#f2f6fb">
-  <title>tCK Atlas · DDR4 / DDR5 时序参数图谱</title>
+  <title data-i18n="meta.title">tCK Atlas · DDR4 / DDR5 时序参数图谱</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2309131c'/%3E%3Cpath d='M15 40V26h8v14h8V18h8v22h8V30h4' fill='none' stroke='%23f4b860' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script>
     (function () {
       var saved = null;
+      var lang = '';
       try {
         saved = window.localStorage.getItem('tck-atlas-theme') || window.localStorage.getItem('ddr-atlas-theme');
+        lang = window.localStorage.getItem('tck-atlas-lang') || '';
       } catch (error) {}
       var theme = saved === 'light' || saved === 'dark'
         ? saved
@@ -20,6 +22,12 @@
       document.documentElement.style.colorScheme = theme;
       var meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', theme === 'dark' ? '#070d17' : '#f2f6fb');
+      if (lang !== 'zh' && lang !== 'en') {
+        lang = (/^en/i.test(navigator.language || '') ? 'en' : 'zh');
+      }
+      window.__TCK_LANG = lang;
+      document.documentElement.setAttribute('data-lang', lang);
+      document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
     })();
   </script>
   <link rel="stylesheet" href="styles.css">
@@ -86,10 +94,10 @@
 
   <header class="topbar">
     <div class="topbar__left">
-      <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开参数目录" aria-expanded="false" aria-controls="sidebar">
+      <button class="icon-button menu-button" id="menuButton" type="button" aria-label="打开参数目录" data-i18n-aria="topbar.menu" aria-expanded="false" aria-controls="sidebar">
         <svg><use href="#i-menu"></use></svg>
       </button>
-      <a class="brand" href="#/p/trcd" aria-label="tCK Atlas 首页">
+      <a class="brand" href="#/p/trcd" aria-label="tCK Atlas 首页" data-i18n-aria="topbar.brandHome">
         <span class="brand__mark" aria-hidden="true">
           <svg viewBox="0 0 40 40">
             <rect x="5.5" y="5.5" width="29" height="29" rx="7"></rect>
@@ -104,24 +112,28 @@
       </a>
     </div>
 
-    <nav class="view-nav" aria-label="主视图">
-      <button class="view-tab is-active" type="button" data-view="atlas" aria-label="参数图谱" title="参数图谱">
+    <nav class="view-nav" aria-label="主视图" data-i18n-aria="topbar.views">
+      <button class="view-tab is-active" type="button" data-view="atlas" aria-label="参数图谱" title="参数图谱" data-i18n-aria="nav.atlas" data-i18n-title="nav.atlas">
         <svg><use href="#i-grid"></use></svg>
-        <span>参数图谱</span>
+        <span data-i18n="nav.atlas">参数图谱</span>
       </button>
-      <button class="view-tab" type="button" data-view="sequence" aria-label="完整时序" title="完整时序">
+      <button class="view-tab" type="button" data-view="sequence" aria-label="完整时序" title="完整时序" data-i18n-aria="nav.sequence" data-i18n-title="nav.sequence">
         <svg><use href="#i-wave"></use></svg>
-        <span>完整时序</span>
+        <span data-i18n="nav.sequence">完整时序</span>
       </button>
-      <button class="view-tab" type="button" data-view="calculator" aria-label="换算器" title="换算器">
+      <button class="view-tab" type="button" data-view="calculator" aria-label="换算器" title="换算器" data-i18n-aria="nav.calc" data-i18n-title="nav.calc">
         <svg><use href="#i-calc"></use></svg>
-        <span>换算器</span>
+        <span data-i18n="nav.calc">换算器</span>
       </button>
     </nav>
 
     <div class="topbar__right">
       <span class="reference-state"><i></i>FIELD REFERENCE</span>
       <span class="scope-badge">DDR4 <b>/</b> DDR5</span>
+      <div class="lang-switch" role="group" data-i18n-aria="topbar.language">
+        <button class="lang-switch__option" type="button" data-lang="zh" aria-pressed="true" aria-label="中文" data-i18n-aria="lang.zh">中</button>
+        <button class="lang-switch__option" type="button" data-lang="en" aria-pressed="false" aria-label="English" data-i18n-aria="lang.en">EN</button>
+      </div>
       <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换到暗色主题" title="切换到暗色主题">
         <svg class="theme-toggle__icon" aria-hidden="true"><use href="#i-moon"></use></svg>
         <span class="theme-toggle__label" data-theme-label>暗色</span>
@@ -131,17 +143,17 @@
 
   <div class="workspace">
     <div class="sidebar-scrim" id="sidebarScrim"></div>
-    <aside class="sidebar" id="sidebar" aria-label="参数目录">
+    <aside class="sidebar" id="sidebar" aria-label="参数目录" data-i18n-aria="sidebar.head">
       <div class="sidebar__mobile-head">
-        <span>参数目录</span>
-        <button class="icon-button" id="sidebarClose" type="button" aria-label="关闭参数目录">
+        <span data-i18n="sidebar.head">参数目录</span>
+        <button class="icon-button" id="sidebarClose" type="button" aria-label="关闭参数目录" data-i18n-aria="sidebar.close">
           <svg><use href="#i-close"></use></svg>
         </button>
       </div>
 
       <div class="search-box">
         <svg><use href="#i-search"></use></svg>
-        <input id="paramSearch" type="search" placeholder="搜索参数 / 中文名 / 别名" autocomplete="off" spellcheck="false" aria-label="搜索时序参数">
+        <input id="paramSearch" type="search" placeholder="搜索参数 / 中文名 / 别名" data-i18n-placeholder="sidebar.searchPlaceholder" autocomplete="off" spellcheck="false" aria-label="搜索时序参数" data-i18n-aria="sidebar.searchAria">
         <kbd>/</kbd>
       </div>
 
@@ -154,15 +166,15 @@
 
       <div class="search-empty" id="searchEmpty" hidden>
         <span class="search-empty__code">NO MATCH</span>
-        <p>没有找到对应参数。</p>
-        <button type="button" id="clearSearch">清除搜索</button>
+        <p data-i18n="sidebar.noMatch">没有找到对应参数。</p>
+        <button type="button" id="clearSearch" data-i18n="sidebar.clear">清除搜索</button>
       </div>
 
       <div class="sidebar-note">
         <div class="sidebar-note__icon">
           <svg><use href="#i-info"></use></svg>
         </div>
-        <p>波形均为教学示意，时间轴不一定等比例。设计签署请以 JEDEC 标准与具体器件 datasheet 为准。</p>
+        <p data-i18n="sidebar.note">波形均为教学示意，时间轴不一定等比例。设计签署请以 JEDEC 标准与具体器件 datasheet 为准。</p>
         <span>JEDEC DDR4 / DDR5 FIELD NOTES</span>
       </div>
     </aside>
@@ -172,13 +184,14 @@
       <div class="view" id="sequenceView" hidden></div>
       <div class="view" id="calculatorView" hidden></div>
       <noscript>
-        <p class="noscript">此工具需要启用 JavaScript 才能渲染交互式时序波形。</p>
+        <p class="noscript" data-i18n="noscript">此工具需要启用 JavaScript 才能渲染交互式时序波形。</p>
       </noscript>
     </main>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="i18n.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

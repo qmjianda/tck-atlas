@@ -1,4 +1,4 @@
-/* tCK Atlas — application shell, waveform renderer and calculator. */
+﻿/* tCK Atlas — application shell, waveform renderer and calculator. */
 (function () {
   'use strict';
 
@@ -12,6 +12,26 @@
   const categories = DATA.categories;
   const overview = DATA.overview;
   const DEFAULT_ID = 'trcd';
+  const LANG_KEY = 'tck-atlas-lang';
+  const I18N = window.DDR_ATLAS_I18N || { ui: { zh: {}, en: {} }, params: {}, overview: {} };
+
+  function storedLanguage() {
+    if (window.__TCK_LANG === 'zh' || window.__TCK_LANG === 'en') return window.__TCK_LANG;
+    try {
+      const saved = window.localStorage.getItem(LANG_KEY);
+      if (saved === 'zh' || saved === 'en') return saved;
+    } catch (error) {}
+    return /^en/i.test(navigator.language || '') ? 'en' : 'zh';
+  }
+
+  let lang = storedLanguage();
+  const isEn = () => lang === 'en';
+  const pick = (zh, en) => (isEn() ? en : zh);
+  const uiText = (key) => {
+    const dict = I18N.ui[lang] || I18N.ui.zh || {};
+    const value = dict[key];
+    return value == null ? key : value;
+  };
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -63,6 +83,74 @@
   const byId = new Map(params.map((param) => [param.id, param]));
   const paramIndex = (id) => params.findIndex((param) => param.id === id);
 
+  /* English overlays keep data.js canonical; each overlay is merged per render. */
+  function localizeTrace(trace, overlay) {
+    if (!trace || !overlay) return trace;
+    const spans = trace.spans || [];
+    return Object.assign({}, trace, {
+      caption: overlay.caption != null ? overlay.caption : trace.caption,
+      spans: spans.map((span, index) => {
+        const translated = overlay.spans && overlay.spans[index];
+        return translated ? Object.assign({}, span, { caption: translated.caption, desc: translated.desc }) : span;
+      })
+    });
+  }
+
+  function localizeParam(param) {
+    if (!isEn()) return param;
+    const overlay = I18N.params[param.id];
+    if (!overlay) return param;
+
+    const copy = Object.assign({}, param, {
+      aliases: overlay.aliases || param.aliases,
+      intro: overlay.intro != null ? overlay.intro : param.intro,
+      relation: overlay.relation != null ? overlay.relation : param.relation,
+      relationNote: overlay.relationNote != null ? overlay.relationNote : param.relationNote,
+      facts: param.facts.map((fact, index) => (overlay.facts && overlay.facts[index]
+        ? { label: overlay.facts[index][0], value: overlay.facts[index][1] }
+        : fact)),
+      steps: param.steps.map((step, index) => (overlay.steps && overlay.steps[index]
+        ? { tag: step.tag, title: overlay.steps[index].title, text: overlay.steps[index].text }
+        : step)),
+      context: overlay.context != null ? overlay.context : param.context,
+      pitfall: overlay.pitfall != null ? overlay.pitfall : param.pitfall,
+      memory: overlay.memory != null ? overlay.memory : param.memory,
+      flow: param.flow.map((item, index) => (overlay.flow && overlay.flow[index] != null
+        ? Object.assign({}, item, { sub: overlay.flow[index] })
+        : item)),
+      traceTitle: overlay.traceTitle != null ? overlay.traceTitle : param.traceTitle
+    });
+
+    const variants = param.variants || [];
+    if (variants.length === 1) {
+      copy.variants = [{ label: copy.traceTitle || uiText('atlas.traceWindow'), trace: localizeTrace(variants[0].trace, overlay) }];
+    } else if (variants.length > 1) {
+      copy.variants = variants.map((variant, index) => {
+        const translated = overlay.variants && overlay.variants[index];
+        return {
+          label: translated && translated.label ? translated.label : variant.label,
+          trace: localizeTrace(variant.trace, translated || null)
+        };
+      });
+    }
+    return copy;
+  }
+
+  function localizeOverview() {
+    if (!isEn()) return overview;
+    const overlay = I18N.overview;
+    if (!overlay) return overview;
+    return Object.assign({}, overview, {
+      title: overlay.title != null ? overlay.title : overview.title,
+      intro: overlay.intro != null ? overlay.intro : overview.intro,
+      note: overlay.note != null ? overlay.note : overview.note,
+      phases: overview.phases.map((phase, index) => (overlay.phases && overlay.phases[index]
+        ? Object.assign({}, phase, { title: overlay.phases[index].title, text: overlay.phases[index].text })
+        : phase)),
+      trace: localizeTrace(overview.trace, overlay)
+    });
+  }
+
   function storedTheme() {
     try {
       const value = window.localStorage.getItem(THEME_KEY) || window.localStorage.getItem(LEGACY_THEME_KEY);
@@ -89,14 +177,15 @@
 
   function applyTheme(theme, persist) {
     const next = theme === 'dark' ? 'dark' : 'light';
-    const nextName = next === 'dark' ? '亮色' : '暗色';
+    const nextName = uiText(next === 'dark' ? 'theme.light' : 'theme.dark');
     document.documentElement.setAttribute('data-theme', next);
     document.documentElement.style.colorScheme = next;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', next === 'dark' ? '#070d17' : '#f2f6fb');
     if (themeToggle) {
-      themeToggle.setAttribute('aria-label', `切换到${nextName}主题`);
-      themeToggle.setAttribute('title', `切换到${nextName}主题`);
+      const switchLabel = uiText(next === 'dark' ? 'theme.toLight' : 'theme.toDark');
+      themeToggle.setAttribute('aria-label', switchLabel);
+      themeToggle.setAttribute('title', switchLabel);
       themeToggle.setAttribute('aria-pressed', String(next === 'dark'));
       const label = themeToggle.querySelector('[data-theme-label]');
       const use = themeToggle.querySelector('use');
@@ -118,7 +207,7 @@
     themeToggle.addEventListener('click', () => {
       const next = currentTheme() === 'dark' ? 'light' : 'dark';
       applyTheme(next, true);
-      showToast(next === 'dark' ? '已切换到暗色主题' : '已切换到亮色主题');
+      showToast(uiText(next === 'dark' ? 'theme.switchedDark' : 'theme.switchedLight'));
     });
     if (window.matchMedia) {
       const media = window.matchMedia('(prefers-color-scheme: dark)');
@@ -128,6 +217,55 @@
       if (media.addEventListener) media.addEventListener('change', followSystem);
       else if (media.addListener) media.addListener(followSystem);
     }
+  }
+
+  function applyStaticLanguage() {
+    const dict = I18N.ui[lang] || I18N.ui.zh || {};
+    const text = (key) => (dict[key] == null ? null : dict[key]);
+
+    $$('[data-i18n]').forEach((node) => {
+      const value = text(node.dataset.i18n);
+      if (value != null) node.textContent = value;
+    });
+    $$('[data-i18n-aria]').forEach((node) => {
+      const value = text(node.dataset.i18nAria);
+      if (value != null) node.setAttribute('aria-label', value);
+    });
+    $$('[data-i18n-title]').forEach((node) => {
+      const value = text(node.dataset.i18nTitle);
+      if (value != null) node.setAttribute('title', value);
+    });
+    $$('[data-i18n-placeholder]').forEach((node) => {
+      const value = text(node.dataset.i18nPlaceholder);
+      if (value != null) node.setAttribute('placeholder', value);
+    });
+    $$('[data-i18n-content]').forEach((node) => {
+      const value = text(node.dataset.i18nContent);
+      if (value != null) node.setAttribute('content', value);
+    });
+
+    document.documentElement.lang = isEn() ? 'en' : 'zh-CN';
+    document.documentElement.setAttribute('data-lang', lang);
+
+    $$('.lang-switch__option').forEach((button) => {
+      const active = button.dataset.lang === lang;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  }
+
+  function setLanguage(next) {
+    const value = next === 'en' ? 'en' : 'zh';
+    if (value === lang) return;
+    lang = value;
+    try {
+      window.localStorage.setItem(LANG_KEY, value);
+    } catch (error) {}
+    applyStaticLanguage();
+    applyTheme(currentTheme(), false);
+    renderNav();
+    renderRoute({ keepScroll: true });
+    showToast(isEn() ? uiText('lang.switchedEn') : uiText('lang.switchedZh'));
   }
 
   function fmt(value, decimals = 3) {
@@ -183,13 +321,13 @@
         <div class="nav-group">
           <div class="nav-group__head">
             <span>${category.code}</span>
-            <strong>${esc(category.zh)}</strong>
+            <strong>${esc(pick(category.zh, category.en))}</strong>
             <em>${entries.length}</em>
           </div>
           ${entries.map((param) => `
             <a class="nav-item${param.id === activeId ? ' is-active' : ''}" href="#/p/${param.id}" data-param="${param.id}"${param.id === activeId ? ' aria-current="page"' : ''}>
               <span class="nav-item__sym">${symbol(param.symbol)}</span>
-              <span class="nav-item__name">${esc(param.nameZh)}</span>
+              <span class="nav-item__name">${esc(pick(param.nameZh, param.nameEn))}</span>
               <span class="nav-item__index">${param.categoryCode}.${param.localIndex}</span>
             </a>
           `).join('')}
@@ -199,7 +337,9 @@
     paramNav.innerHTML = html;
     paramNav.hidden = visible.length === 0;
     searchEmpty.hidden = visible.length > 0;
-    resultCount.textContent = query ? `${String(visible.length).padStart(2, '0')} / ${params.length}` : `${params.length} ENTRIES`;
+    resultCount.textContent = query
+      ? `${String(visible.length).padStart(2, '0')} / ${params.length}`
+      : (isEn() ? `${params.length} ENTRIES` : `${params.length} 条参数`);
   }
 
   function updateSidebarSelection() {
@@ -256,7 +396,9 @@
     menuButton.setAttribute('aria-expanded', 'true');
   }
 
-  function renderRoute() {
+  function renderRoute(options) {
+    const keepScroll = Boolean(options && options.keepScroll);
+    const scrollY = window.scrollY;
     stopAllWaves();
     const route = readRoute();
     if (!route.valid) {
@@ -280,24 +422,27 @@
 
     if (route.view === 'atlas') {
       mountAtlas(ui.activeParam);
-      document.title = `${byId.get(ui.activeParam).symbol} · ${byId.get(ui.activeParam).nameZh} | tCK Atlas`;
+      const param = byId.get(ui.activeParam);
+      document.title = `${param.symbol} · ${pick(param.nameZh, param.nameEn)} | tCK Atlas`;
     } else if (route.view === 'sequence') {
       mountSequence();
-      document.title = '一次读取的完整时序 | tCK Atlas';
+      document.title = uiText('sequence.docTitle');
     } else {
       mountCalculator();
-      document.title = 'ns ↔ tCK 时序换算器 | tCK Atlas';
+      document.title = uiText('calc.docTitle');
     }
 
-    window.scrollTo(0, 0);
+    if (keepScroll) window.scrollTo(0, scrollY);
+    else window.scrollTo(0, 0);
   }
 
   /* ---------------------------------------------------------------------
      Atlas page
      ------------------------------------------------------------------ */
   function mountAtlas(id) {
-    const param = byId.get(id) || byId.get(DEFAULT_ID);
-    ui.activeParam = param.id;
+    const base = byId.get(id) || byId.get(DEFAULT_ID);
+    ui.activeParam = base.id;
+    const param = localizeParam(base);
     const variants = param.variants || [];
     const safeVariant = Math.min(Math.max(ui.variant, 0), Math.max(variants.length - 1, 0));
     ui.variant = safeVariant;
@@ -342,7 +487,7 @@
               <span class="eyebrow__signal"></span>
               <span>ATLAS ENTRY ${param.number} / ${params.length}</span>
               <span class="eyebrow__sep"></span>
-              <span>${esc(cat ? cat.en : param.categoryEn)}</span>
+              <span>${esc(cat ? pick(cat.zh, cat.en) : pick(param.categoryZh, param.categoryEn))}</span>
             </div>
 
             <div class="param-title-line">
@@ -351,8 +496,8 @@
             </div>
 
             <div class="param-subline">
-              <h2>${esc(param.nameZh)}</h2>
-              <span>${esc(param.nameEn)}</span>
+              <h2>${esc(pick(param.nameZh, param.nameEn))}</h2>
+              <span>${esc(pick(param.nameEn, param.nameZh))}</span>
             </div>
 
             <p class="param-intro">${esc(param.intro)}</p>
@@ -364,22 +509,22 @@
 
             <div class="hero-actions">
               <a class="button button--primary" href="#/sequence">
-                <span>打开完整时序</span>${icon('arrow')}
+                <span>${uiText('atlas.openSequence')}</span>${icon('arrow')}
               </a>
               <a class="button button--ghost" href="#/calc">
-                <span>换算周期与 ns</span>${icon('calc')}
+                <span>${uiText('atlas.openCalc')}</span>${icon('calc')}
               </a>
             </div>
 
             ${pager}
           </div>
 
-          <aside class="spec-plate" aria-label="参数索引卡">
+          <aside class="spec-plate" aria-label="${esc(uiText('atlas.specAria'))}">
             <div class="spec-plate__head">
               <span>SPECIMEN</span>
               <b>${param.categoryCode}·${param.localIndex}</b>
             </div>
-            <div class="spec-plate__category">${esc(param.categoryZh)}<span>${esc(param.categoryEn)}</span></div>
+            <div class="spec-plate__category">${esc(pick(param.categoryZh, param.categoryEn))}<span>${esc(pick(param.categoryEn, param.categoryZh))}</span></div>
             <div class="spec-plate__glyph">${symbol(param.symbol)}</div>
             <dl class="spec-plate__facts">
               <div><dt>${esc(param.facts[0].label)}</dt><dd>${esc(param.facts[0].value)}</dd></div>
@@ -394,7 +539,7 @@
           <div class="atlas-main">
             ${wavePanelHTML(trace, {
               kicker: 'SIGNAL TRACE / 01',
-              title: param.traceTitle || '时序窗口',
+              title: param.traceTitle || uiText('atlas.traceWindow'),
               variants,
               activeVariant: ui.variant
             })}
@@ -403,7 +548,7 @@
               <div class="panel-head">
                 <div>
                   <span class="section-index">HOW TO READ / 02</span>
-                  <h3>把这个参数拆成三步</h3>
+                  <h3>${uiText('atlas.stepsTitle')}</h3>
                 </div>
                 <span class="panel-head__note">COMMAND LEVEL VIEW</span>
               </div>
@@ -433,7 +578,7 @@
               <div class="panel-head">
                 <div>
                   <span class="section-index">IN PRACTICE / 03</span>
-                  <h3>工程语境</h3>
+                  <h3>${uiText('atlas.contextTitle')}</h3>
                 </div>
                 <span class="context-mark" aria-hidden="true">“</span>
               </div>
@@ -444,7 +589,7 @@
               <div class="section-heading">
                 <div>
                   <span class="section-index">NEIGHBORS / 04</span>
-                  <h3>沿着时序继续看</h3>
+                  <h3>${uiText('atlas.relatedTitle')}</h3>
                 </div>
                 <span class="section-heading__rule" aria-hidden="true"></span>
               </div>
@@ -456,7 +601,7 @@
                     <a class="related-card" href="#/p/${related.id}">
                       <span class="related-card__meta">${related.categoryCode} / ${esc(related.categoryEn)}</span>
                       <strong>${symbol(related.symbol)}</strong>
-                      <span class="related-card__name">${esc(related.nameZh)}</span>
+                      <span class="related-card__name">${esc(pick(related.nameZh, related.nameEn))}</span>
                       <span class="related-card__arrow" aria-hidden="true">${icon('arrow')}</span>
                     </a>`;
                 }).join('')}
@@ -467,7 +612,7 @@
           <aside class="atlas-rail">
             <section class="panel facts-panel">
               <div class="panel-head panel-head--compact">
-                <div><span class="section-index">SPEC SHEET / A</span><h3>参数读数</h3></div>
+                <div><span class="section-index">SPEC SHEET / A</span><h3>${uiText('atlas.factsTitle')}</h3></div>
               </div>
               <dl class="fact-list">
                 ${param.facts.map((fact) => `
@@ -478,7 +623,7 @@
 
             <section class="panel equation-panel">
               <div class="panel-head panel-head--compact">
-                <div><span class="section-index">RELATION / B</span><h3>关系式</h3></div>
+                <div><span class="section-index">RELATION / B</span><h3>${uiText('atlas.relationTitle')}</h3></div>
               </div>
               <div class="equation">${esc(param.relation)}</div>
               <p>${esc(param.relationNote)}</p>
@@ -486,19 +631,19 @@
 
             <section class="callout callout--warning">
               <span class="callout__label">WATCH OUT / C</span>
-              <h3>最容易错的点</h3>
+              <h3>${uiText('atlas.pitfallTitle')}</h3>
               <p>${esc(param.pitfall)}</p>
             </section>
 
             <section class="callout callout--memory">
               <span class="callout__label">MEMORY HOOK / D</span>
               <blockquote>${esc(param.memory)}</blockquote>
-              <span class="callout__foot">一句话记住它</span>
+              <span class="callout__foot">${uiText('atlas.memoryFoot')}</span>
             </section>
 
             <div class="rail-note">
               <span>NOTE</span>
-              <p>图中周期数用于解释先后关系。设计签署请以 JEDEC 与器件 datasheet 的精确数值为准。</p>
+              <p>${uiText('atlas.railNote')}</p>
             </div>
           </aside>
         </div>
@@ -542,7 +687,7 @@
     const xBase = (cycle) => pl + cycle * cw;
     const xCenter = (cycle) => pl + (cycle + 0.5) * cw;
 
-    let svg = `<svg class="trace-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(trace.caption || 'DDR 时序波形')}" style="--trace-w:${width}px">`;
+    let svg = `<svg class="trace-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(trace.caption || uiText('atlas.waveTitle'))}" style="--trace-w:${width}px">`;
     svg += `<defs>
       <pattern id="${uid}-hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
         <line x1="0" y1="0" x2="0" y2="7" stroke="var(--wave-hatch, rgba(124, 168, 188, .13))" stroke-width="1"></line>
@@ -663,17 +808,19 @@
       const rowTop = spanTop + 18 + row * rowH;
       const lineY = rowTop + 30;
       const midX = (startX + endX) / 2;
-      const labelWidth = Math.max(56, String(span.label).length * 7.3 + 36);
+      const label = span.label;
+      const caption = span.caption || '';
+      const labelWidth = Math.max(56, String(label).length * 7.3 + 36);
       const pillX = midX - labelWidth / 2;
-      const title = `${span.label}: ${span.caption || ''}`;
-      svg += `<g class="measure measure--${tone}${span.target === ui.activeParam && ui.activeView === 'atlas' ? ' is-current' : ''}" data-span-index="${spanIndex}" tabindex="0" role="button" aria-label="${esc(title)}. 点击打开有关参数。">
+      const title = `${label}: ${caption}`;
+      svg += `<g class="measure measure--${tone}${span.target === ui.activeParam && ui.activeView === 'atlas' ? ' is-current' : ''}" data-span-index="${spanIndex}" tabindex="0" role="button" aria-label="${esc(title)}. ${esc(uiText('wave.spanAria'))}">
         <title>${esc(title)}</title>
         <rect class="span-hit" x="${startX}" y="${rowTop - 8}" width="${Math.max(1, endX - startX)}" height="${rowH - 10}" rx="6"></rect>
         <line class="span-stem" x1="${startX}" y1="${lineY}" x2="${endX}" y2="${lineY}"></line>
         <line class="span-cap" x1="${startX}" y1="${lineY - 8}" x2="${startX}" y2="${lineY + 8}"></line>
         <line class="span-cap" x1="${endX}" y1="${lineY - 8}" x2="${endX}" y2="${lineY + 8}"></line>
         <rect class="span-pill" x="${pillX}" y="${lineY - 34}" width="${labelWidth}" height="24" rx="12"></rect>
-        <text class="span-text" x="${midX}" y="${lineY - 18}" text-anchor="middle">${esc(span.label)}</text>
+        <text class="span-text" x="${midX}" y="${lineY - 18}" text-anchor="middle">${esc(label)}</text>
         ${span.target ? `<text class="span-link" x="${pillX + labelWidth - 10}" y="${lineY - 18}" text-anchor="middle">↗</text>` : ''}
       </g>`;
     });
@@ -694,25 +841,29 @@
     const cw = waveCw(Math.max(1, Number(trace.cycles) || 1));
     const svg = renderTraceSVG(trace);
     const tone = (span) => toneFor(span.kind);
-    const noteButtons = (trace.spans || []).map((span, index) => `
-      <button class="wave-note wave-note--${tone(span)}" type="button" data-span-index="${index}" aria-label="查看 ${esc(span.label)} 的说明">
-        <span class="wave-note__top"><i></i><b>${esc(span.label)}</b></span>
+    const noteButtons = (trace.spans || []).map((span, index) => {
+      const label = span.label;
+      const noteLabel = uiText('wave.noteAria').replace('{label}', label);
+      return `
+      <button class="wave-note wave-note--${tone(span)}" type="button" data-span-index="${index}" aria-label="${esc(noteLabel)}">
+        <span class="wave-note__top"><i></i><b>${esc(label)}</b></span>
         <span class="wave-note__caption">${esc(span.caption || '')}</span>
         <span class="wave-note__arrow" aria-hidden="true">↗</span>
       </button>
-    `).join('');
+    `;
+    }).join('');
 
     return `
       <section class="panel waveform-panel" data-wave-panel data-wave-origin="98" data-wave-step="${cw}" data-wave-cycles="${trace.cycles}">
         <div class="panel-head wave-head">
           <div>
             <span class="section-index">${esc(options.kicker || 'SIGNAL TRACE / 01')}</span>
-            <h3>${esc(options.title || '时序波形')}</h3>
+            <h3>${esc(options.title || uiText('atlas.waveTitle'))}</h3>
           </div>
           <div class="wave-tools">
             ${trace.notToScale ? '<span class="schematic-chip">SCHEMATIC · NOT TO SCALE</span>' : ''}
             <span class="scan-readout">AT <b data-scan-cycle>T00</b></span>
-            <button class="wave-play" type="button" data-wave-play aria-pressed="false" aria-label="播放时序扫描">
+            <button class="wave-play" type="button" data-wave-play aria-pressed="false" aria-label="${esc(uiText('wave.playAria'))}">
               <span class="wave-play__icons" aria-hidden="true">
                 ${icon('play')}${icon('pause')}
               </span>
@@ -724,7 +875,7 @@
         ${variants.length > 1 ? `
           <div class="variant-bar">
             <span class="variant-bar__label">VARIANT</span>
-            <div class="variant-tabs" role="tablist" aria-label="时序变体">
+            <div class="variant-tabs" role="tablist" aria-label="${esc(uiText('wave.variantAria'))}">
               ${variants.map((variant, index) => `
                 <button class="variant-tab${index === activeVariant ? ' is-active' : ''}" type="button" role="tab" aria-selected="${index === activeVariant}" data-variant="${index}">
                   <span>${String(index + 1).padStart(2, '0')}</span>${esc(variant.label)}
@@ -737,16 +888,16 @@
 
         <div class="wave-inspect" aria-live="polite">
           <span class="wave-inspect__key">HOVER / FOCUS</span>
-          <span class="wave-inspect__main">把指针移到测量括号上，查看它衡量的起止点。</span>
+          <span class="wave-inspect__main">${uiText('wave.inspect')}</span>
           <span class="wave-inspect__desc">${esc(trace.caption || '')}</span>
         </div>
 
         <div class="wave-notes">${noteButtons}</div>
 
         <div class="wave-foot">
-          <span><i class="legend-measure"></i> 测量括号可点击 / 可键盘聚焦</span>
-          <span class="wave-scroll-hint">← 横向滑动查看完整波形</span>
-          <span>${esc(trace.caption || '时序示意，不代表具体 speed bin')}</span>
+          <span><i class="legend-measure"></i> ${uiText('wave.legend')}</span>
+          <span class="wave-scroll-hint">${uiText('wave.scrollHint')}</span>
+          <span>${esc(trace.caption || '')}</span>
         </div>
       </section>`;
   }
@@ -769,7 +920,7 @@
 
     const resetInspect = () => {
       inspect.innerHTML = `<span class="wave-inspect__key">HOVER / FOCUS</span>
-        <span class="wave-inspect__main">把指针移到测量括号上，查看它衡量的起止点。</span>
+        <span class="wave-inspect__main">${uiText('wave.inspect')}</span>
         <span class="wave-inspect__desc">${esc(trace.caption || '')}</span>`;
       groups.forEach((group) => group.classList.remove('is-hovered'));
       notes.forEach((note) => note.classList.remove('is-hovered'));
@@ -779,7 +930,7 @@
       const span = spans[index];
       if (!span) return;
       inspect.innerHTML = `<span class="wave-inspect__key wave-inspect__key--${toneFor(span.kind)}">${esc(span.label)}</span>
-        <span class="wave-inspect__main">${esc(span.caption || '测量窗口')}</span>
+        <span class="wave-inspect__main">${esc(span.caption || uiText('wave.measure'))}</span>
         <span class="wave-inspect__desc">${esc(span.desc || '')}</span>`;
       groups.forEach((group, groupIndex) => group.classList.toggle('is-hovered', groupIndex === index));
       notes.forEach((note, noteIndex) => note.classList.toggle('is-hovered', noteIndex === index));
@@ -788,7 +939,7 @@
     const openSpan = (span) => {
       if (!span || !span.target) return;
       if (ui.activeView === 'atlas' && span.target === ui.activeParam) {
-        showToast(`${span.label} · ${span.caption || '当前参数'}`);
+        showToast(`${span.label} · ${span.caption || uiText('wave.current')}`);
         panel.classList.remove('is-flashing');
         void panel.offsetWidth;
         panel.classList.add('is-flashing');
@@ -890,8 +1041,9 @@
      Sequence page
      ------------------------------------------------------------------ */
   function mountSequence() {
-    const trace = overview.trace;
-    const phases = overview.phases;
+    const view = localizeOverview();
+    const trace = view.trace;
+    const phases = view.phases;
     const commands = (trace.commands || []).length;
     const measurements = (trace.spans || []).length;
     const beats = (trace.dataBursts || []).reduce((total, burst) => total + (burst.cells ? burst.cells.length : 0), 0);
@@ -901,11 +1053,11 @@
         <header class="sequence-hero">
           <div class="sequence-hero__copy">
             <div class="eyebrow"><span class="eyebrow__signal"></span><span>SEQUENCE / ONE READ, END TO END</span></div>
-            <h1>把六个参数，<br><span>放回同一根时间轴。</span></h1>
-            <p>${esc(overview.intro)}</p>
+            <h1>${uiText('sequence.titleA')}<br><span>${uiText('sequence.titleB')}</span></h1>
+            <p>${esc(view.intro)}</p>
             <div class="hero-actions">
-              <a class="button button--primary" href="#/calc">换算这些时间 ${icon('arrow')}</a>
-              <a class="button button--ghost" href="#/p/trcd">从 t<sub>RCD</sub> 开始 ${icon('back')}</a>
+              <a class="button button--primary" href="#/calc">${uiText('sequence.ctaCalc')} ${icon('arrow')}</a>
+              <a class="button button--ghost" href="#/p/trcd">${uiText('sequence.ctaStart')} ${icon('back')}</a>
             </div>
           </div>
           <aside class="sequence-index">
@@ -915,23 +1067,23 @@
               <div><span>MEASUREMENTS</span><b>${String(measurements).padStart(2, '0')}</b></div>
               <div><span>DATA BEATS</span><b>${String(beats).padStart(2, '0')}</b></div>
             </div>
-            <p>${esc(overview.note)}</p>
+            <p>${esc(view.note)}</p>
             <div class="sequence-index__rail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
           </aside>
         </header>
 
         ${wavePanelHTML(trace, {
           kicker: 'SEQUENCE TRACE / 01',
-          title: overview.title
+          title: view.title
         })}
 
         <section class="phase-section">
           <div class="section-heading">
             <div>
               <span class="section-index">BREAK IT DOWN / 02</span>
-              <h2>四步拆开一次读取</h2>
+              <h2>${uiText('sequence.phaseTitle')}</h2>
             </div>
-            <p>每个阶段都有自己的等待窗口；它们首尾相接，才是一条完整的行周期。</p>
+            <p>${uiText('sequence.phaseNote')}</p>
           </div>
           <div class="phase-grid">
             ${phases.map((phase) => `
@@ -940,7 +1092,7 @@
                 <span class="phase-card__time">${esc(phase.time)}</span>
                 <h3>${esc(phase.title)}</h3>
                 <p>${esc(phase.text)}</p>
-                <span class="phase-card__link">打开参数 ${icon('arrow')}</span>
+                <span class="phase-card__link">${uiText('sequence.openParam')} ${icon('arrow')}</span>
               </a>
             `).join('')}
           </div>
@@ -950,26 +1102,26 @@
           <div class="formula-item">
             <span>READ PATH</span>
             <code>t<sub>RCD</sub> + t<sub>CL</sub> → first DQ</code>
-            <p>行打开与列读取两段延迟相加，才是首拍数据到达。</p>
+            <p>${uiText('sequence.formulaRead')}</p>
           </div>
           <div class="formula-item">
             <span>BUS OCCUPANCY</span>
             <code>(BL ÷ 2) × t<sub>CK</sub></code>
-            <p>BL8 在双沿总线上只占四个完整时钟周期。</p>
+            <p>${uiText('sequence.formulaBus')}</p>
           </div>
           <div class="formula-item">
             <span>ROW CYCLE</span>
             <code>t<sub>RAS</sub> + t<sub>RP</sub> = t<sub>RC</sub></code>
-            <p>保持行、关闭行，再允许下一次同 Bank 激活。</p>
+            <p>${uiText('sequence.formulaRow')}</p>
           </div>
         </section>
 
         <div class="page-cta">
           <div>
             <span class="section-index">NEXT / NUMBERS</span>
-            <h2>这些周期数，在真实频率下是几纳秒？</h2>
+            <h2>${uiText('sequence.ctaTitle')}</h2>
           </div>
-          <a class="button button--primary" href="#/calc">打开时序换算器 ${icon('arrow')}</a>
+          <a class="button button--primary" href="#/calc">${uiText('sequence.ctaButton')} ${icon('arrow')}</a>
         </div>
       </div>`;
 
@@ -980,14 +1132,18 @@
   /* ---------------------------------------------------------------------
      Calculator
      ------------------------------------------------------------------ */
-  const calcField = (key, zh, en, unit, min, max, step = 1) => `
+  const calcField = (key, zh, en, unit, min, max, step = 1) => {
+    const primary = isEn() ? en : zh;
+    const secondary = isEn() ? zh : en;
+    return `
     <label class="calc-field">
-      <span class="calc-field__top"><b>${esc(zh)}</b><span>${esc(en)}</span></span>
+      <span class="calc-field__top"><b>${esc(primary)}</b>${secondary && secondary !== primary ? `<span>${esc(secondary)}</span>` : ''}</span>
       <span class="calc-field__control">
-        <input type="number" inputmode="decimal" data-calc-field="${key}" value="${esc(calc[key])}" min="${min}" max="${max}" step="${step}" aria-label="${esc(zh)}">
+        <input type="number" inputmode="decimal" data-calc-field="${key}" value="${esc(calc[key])}" min="${min}" max="${max}" step="${step}" aria-label="${esc(primary)}">
         <span class="calc-field__unit">${esc(unit)}</span>
       </span>
     </label>`;
+  };
 
   const presetButtons = (group) => DATA.calcPresets
     .filter((preset) => preset.group === group)
@@ -1000,8 +1156,8 @@
         <header class="calc-hero">
           <div class="calc-hero__copy">
             <div class="eyebrow"><span class="eyebrow__signal"></span><span>CALCULATOR / PERIOD ↔ NANOSECONDS</span></div>
-            <h1>周期与纳秒，<br><span>一次换算。</span></h1>
-            <p>给定数据率，算出真实的 t<sub>CK</sub>、读延迟与刷新开销。所有周期参数在这里统一换成 ns 后再比较。</p>
+            <h1>${uiText('calc.titleA')}<br><span>${uiText('calc.titleB')}</span></h1>
+            <p>${uiText('calc.intro')}</p>
           </div>
           <div class="calc-hero__display">
             <span>ONE CLOCK CYCLE</span>
@@ -1013,12 +1169,12 @@
         <div class="calc-layout">
           <section class="panel calc-controls">
             <div class="panel-head">
-              <div><span class="section-index">INPUT / 01</span><h3>速度等级与周期参数</h3></div>
+              <div><span class="section-index">INPUT / 01</span><h3>${uiText('calc.inputTitle')}</h3></div>
               <span class="panel-head__note">CYCLES IN, CYCLES OUT</span>
             </div>
 
             <div class="preset-block">
-              <div class="preset-block__head"><span>SPEED BIN</span><small>预设只改变数据率，周期参数保留当前输入</small></div>
+              <div class="preset-block__head"><span>SPEED BIN</span><small>${uiText('calc.presetNote')}</small></div>
               <div class="preset-group">
                 <span class="preset-group__name">DDR4</span>
                 <div class="preset-list">${presetButtons('DDR4')}</div>
@@ -1030,58 +1186,58 @@
             </div>
 
             <div class="calc-fields calc-fields--three">
-              ${calcField('rate', '数据率', 'DATA RATE', 'MT/s', 400, 12000, 100)}
-              ${calcField('cl', 'CL · 读延迟', 'CAS LATENCY', 'tCK', 1, 128, 1)}
-              ${calcField('cwl', 'CWL · 写延迟', 'CAS WRITE LATENCY', 'tCK', 1, 128, 1)}
+              ${calcField('rate', '数据率', 'Data rate', 'MT/s', 400, 12000, 100)}
+              ${calcField('cl', 'CL · 读延迟', 'CL · read latency', 'tCK', 1, 128, 1)}
+              ${calcField('cwl', 'CWL · 写延迟', 'CWL · write latency', 'tCK', 1, 128, 1)}
             </div>
 
             <div class="calc-fields calc-fields--four">
               <div class="calc-field calc-field--burst">
-                <span class="calc-field__top"><b>突发长度</b><span>BURST LENGTH</span></span>
-                <div class="burst-toggle" role="group" aria-label="突发长度">
+                <span class="calc-field__top"><b>${uiText('calc.burst')}</b><span>${isEn() ? '突发长度' : 'BURST LENGTH'}</span></span>
+                <div class="burst-toggle" role="group" aria-label="${esc(uiText('calc.burst'))}">
                   <button type="button" class="burst-option${calc.bl === 8 ? ' is-active' : ''}" data-calc-bl="8" aria-pressed="${calc.bl === 8}">BL8</button>
                   <button type="button" class="burst-option${calc.bl === 16 ? ' is-active' : ''}" data-calc-bl="16" aria-pressed="${calc.bl === 16}">BL16</button>
                 </div>
               </div>
-              ${calcField('trcd', 'tRCD', 'ROW TO COLUMN', 'tCK', 0, 128, 1)}
-              ${calcField('trp', 'tRP', 'PRECHARGE', 'tCK', 0, 128, 1)}
-              ${calcField('tras', 'tRAS', 'ROW ACTIVE', 'tCK', 0, 256, 1)}
+              ${calcField('trcd', 'tRCD', 'tRCD', 'tCK', 0, 128, 1)}
+              ${calcField('trp', 'tRP', 'tRP', 'tCK', 0, 128, 1)}
+              ${calcField('tras', 'tRAS', 'tRAS', 'tCK', 0, 256, 1)}
             </div>
 
             <details class="calc-advanced" open>
-              <summary><span>刷新参数</span><span>REFRESH / ADVANCED</span></summary>
+              <summary><span>${uiText('calc.refresh')}</span><span>REFRESH / ADVANCED</span></summary>
               <div class="calc-fields calc-fields--two">
-                ${calcField('trfc', 'tRFC · 刷新停摆', 'REFRESH CYCLE', 'ns', 20, 2000, 10)}
-                ${calcField('trefi', 'tREFI · 平均间隔', 'REFRESH INTERVAL', 'µs', 1, 20, 0.1)}
+                ${calcField('trfc', 'tRFC · 刷新停摆', 'tRFC · refresh blackout', 'ns', 20, 2000, 10)}
+                ${calcField('trefi', 'tREFI · 平均间隔', 'tREFI · average interval', 'µs', 1, 20, 0.1)}
               </div>
-              <p class="calc-hint">tRFC 通常以 ns 给出；tREFI 常以 µs 给出，普通温度下典型值约为 7.8 µs。</p>
+              <p class="calc-hint">${uiText('calc.hint')}</p>
             </details>
 
             <div class="calc-controls__foot">
-              <p><span>落点</span> 读看 CL，写看 CWL；刷新开销按 tRFC / tREFI 估算。</p>
-              <button class="text-button" type="button" data-calc-reset>${icon('refresh')} 重置默认值</button>
+              <p><span>${uiText('calc.footLabel')}</span> ${uiText('calc.foot')}</p>
+              <button class="text-button" type="button" data-calc-reset>${icon('refresh')} ${uiText('calc.reset')}</button>
             </div>
           </section>
 
           <section class="panel calc-readout">
             <div class="panel-head">
-              <div><span class="section-index">OUTPUT / 02</span><h3>时序读数</h3></div>
+              <div><span class="section-index">OUTPUT / 02</span><h3>${uiText('calc.readoutTitle')}</h3></div>
               <span class="panel-head__note">ABSOLUTE TIME · ns</span>
             </div>
 
             <div class="readout-lead">
               <span>ONE CLOCK PERIOD</span>
               <div class="readout-lead__number"><strong data-calc-out="tck">0.625</strong><em>ns</em></div>
-              <p><b data-calc-out="binLabel">DDR4-3200</b><span>·</span>1 tCK = 2000 / 数据率</p>
+              <p><b data-calc-out="binLabel">DDR4-3200</b><span>·</span>${uiText('calc.formulaRate')}</p>
             </div>
 
             <div class="calc-metrics">
-              <div class="calc-metric"><span>CL · 读延迟</span><strong data-calc-out="clNs">—</strong><em>ns</em><small>CL × tCK</small></div>
-              <div class="calc-metric"><span>tCWL · 写延迟</span><strong data-calc-out="cwlNs">—</strong><em>ns</em><small>CWL × tCK</small></div>
-              <div class="calc-metric"><span>突发窗口 <b data-calc-out="blLabel">BL8</b></span><strong data-calc-out="burstNs">—</strong><em>ns</em><small>BL ÷ 2 × tCK</small></div>
-              <div class="calc-metric"><span>首次读数据</span><strong data-calc-out="readNs">—</strong><em>ns</em><small>tRCD + CL</small></div>
-              <div class="calc-metric"><span>行周期 tRC</span><strong data-calc-out="rowCycleNs">—</strong><em>ns</em><small>tRAS + tRP</small></div>
-              <div class="calc-metric"><span>64-bit 理论带宽</span><strong data-calc-out="bandwidth">—</strong><em>GB/s</em><small>数据率 × 8 / 1000</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricCl')}</span><strong data-calc-out="clNs">—</strong><em>ns</em><small>CL × tCK</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricCwl')}</span><strong data-calc-out="cwlNs">—</strong><em>ns</em><small>CWL × tCK</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricBurst')} <b data-calc-out="blLabel">BL8</b></span><strong data-calc-out="burstNs">—</strong><em>ns</em><small>BL ÷ 2 × tCK</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricRead')}</span><strong data-calc-out="readNs">—</strong><em>ns</em><small>tRCD + CL</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricRow')}</span><strong data-calc-out="rowCycleNs">—</strong><em>ns</em><small>tRAS + tRP</small></div>
+              <div class="calc-metric"><span>${uiText('calc.metricBandwidth')}</span><strong data-calc-out="bandwidth">—</strong><em>GB/s</em><small>${uiText('calc.bandwidthFormula')}</small></div>
             </div>
 
             <div class="latency-ladder">
@@ -1090,49 +1246,49 @@
               <div class="ladder-row"><div class="ladder-label"><span>tRCD</span><b data-calc-out="trcdNs">—</b></div><div class="ladder-track"><i class="ladder-fill ladder-fill--amber" data-calc-bar="trcdNs"></i></div></div>
               <div class="ladder-row"><div class="ladder-label"><span>tRP</span><b data-calc-out="trpNs">—</b></div><div class="ladder-track"><i class="ladder-fill ladder-fill--muted" data-calc-bar="trpNs"></i></div></div>
               <div class="ladder-row"><div class="ladder-label"><span>tRAS</span><b data-calc-out="trasNs">—</b></div><div class="ladder-track"><i class="ladder-fill ladder-fill--violet" data-calc-bar="trasNs"></i></div></div>
-              <div class="ladder-row"><div class="ladder-label"><span>首次读数据</span><b data-calc-out="readNs">—</b></div><div class="ladder-track"><i class="ladder-fill ladder-fill--orange" data-calc-bar="readNs"></i></div></div>
+              <div class="ladder-row"><div class="ladder-label"><span>${uiText('calc.metricRead')}</span><b data-calc-out="readNs">—</b></div><div class="ladder-track"><i class="ladder-fill ladder-fill--orange" data-calc-bar="readNs"></i></div></div>
             </div>
 
             <div class="refresh-card">
               <div class="refresh-card__head">
-                <div><span>AVG REFRESH OVERHEAD</span><strong>刷新平均占用</strong></div>
+                <div><span>AVG REFRESH OVERHEAD</span><strong>${uiText('calc.refreshOverhead')}</strong></div>
                 <div class="refresh-card__number"><strong data-calc-out="overhead">—</strong><em>%</em></div>
               </div>
               <div class="refresh-meter"><i data-calc-bar="overhead"></i></div>
               <div class="refresh-scale"><span>0%</span><span>10%</span><span>20%+</span></div>
-              <p>按 t<sub>RFC</sub> / t<sub>REFI</sub> 估算；实际调度还会受 Bank 分组、温度档位与刷新模式影响。</p>
+              <p>${uiText('calc.refreshNote')}</p>
             </div>
 
             <div class="readout-formula">
               <span>QUICK CHECK</span>
               <code>3200 MT/s → 1600 MHz → 0.625 ns</code>
-              <p>频率翻倍，tCK 减半；周期参数不变时，绝对时间也减半。</p>
+              <p>${uiText('calc.quickCheckNote')}</p>
             </div>
           </section>
         </div>
 
         <section class="panel probe-panel">
           <div class="panel-head">
-            <div><span class="section-index">PROBE / 03</span><h3>自由换算</h3></div>
+            <div><span class="section-index">PROBE / 03</span><h3>${uiText('calc.probeTitle')}</h3></div>
             <span class="probe-live">LIVE · 1 tCK = <b data-probe-tck>0.625</b> ns</span>
           </div>
           <div class="probe-grid">
             <div class="probe-card">
               <div class="probe-card__head"><span>01</span><b>CYCLES → NANOSECONDS</b></div>
-              <label class="probe-input"><input type="number" inputmode="decimal" data-probe-input="cycles" value="${esc(calc.probeCycles)}" min="0" step="1" aria-label="周期数"><span>tCK</span></label>
+              <label class="probe-input"><input type="number" inputmode="decimal" data-probe-input="cycles" value="${esc(calc.probeCycles)}" min="0" step="1" aria-label="${esc(uiText('calc.cycles'))}"><span>tCK</span></label>
               <div class="probe-result"><span>RESULT</span><strong data-probe-out="cyclesToNs">—</strong><em>ns</em></div>
             </div>
             <div class="probe-swap" aria-hidden="true">${icon('arrow')}</div>
             <div class="probe-card">
               <div class="probe-card__head"><span>02</span><b>NANOSECONDS → CYCLES</b></div>
-              <label class="probe-input"><input type="number" inputmode="decimal" data-probe-input="ns" value="${esc(calc.probeNs)}" min="0" step="0.1" aria-label="纳秒"><span>ns</span></label>
+              <label class="probe-input"><input type="number" inputmode="decimal" data-probe-input="ns" value="${esc(calc.probeNs)}" min="0" step="0.1" aria-label="${esc(uiText('calc.nanoseconds'))}"><span>ns</span></label>
               <div class="probe-result"><span>RESULT</span><strong data-probe-out="nsToCycles">—</strong><em>tCK</em></div>
             </div>
           </div>
-          <p class="probe-note">换算跟随上方数据率变化。要比较两个 speed bin，先分别算出 tCK，再回看周期参数。</p>
+          <p class="probe-note">${uiText('calc.probeNote')}</p>
         </section>
 
-        <p class="calculator-disclaimer">教学模型：采用 DDR 双沿传输与理想突发窗口。未计入 PHY 训练余量、PCB 飞行时间、rank/bank 冲突、刷新调度平滑与命令总线协议开销。</p>
+        <p class="calculator-disclaimer">${uiText('calc.disclaimer')}</p>
       </div>`;
 
     updateCalcUI();
@@ -1236,6 +1392,10 @@
      Events
      ------------------------------------------------------------------ */
   function bindShellEvents() {
+    $$('.lang-switch__option').forEach((button) => {
+      button.addEventListener('click', () => setLanguage(button.dataset.lang));
+    });
+
     $$('.view-tab').forEach((button) => {
       button.addEventListener('click', () => {
         if (button.dataset.view === 'atlas') {
@@ -1343,7 +1503,7 @@
           probeNs: 10
         });
         mountCalculator();
-        showToast('已恢复默认输入');
+        showToast(uiText('calc.resetToast'));
       }
     });
 
@@ -1365,6 +1525,7 @@
   }
 
   function init() {
+    applyStaticLanguage();
     initTheme();
     renderNav();
     if (!window.location.hash) {

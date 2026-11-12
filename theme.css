@@ -346,6 +346,46 @@ html[data-theme="dark"] .view-nav {
   white-space: nowrap;
 }
 
+/* Language switch (中文 / EN) */
+.lang-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.lang-switch__option {
+  display: inline-grid;
+  place-items: center;
+  min-width: 30px;
+  height: 24px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), color 0.2s var(--ease);
+}
+
+.lang-switch__option:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.lang-switch__option[aria-pressed="true"] {
+  color: var(--action-ink);
+  background: var(--action);
+}
+
 /* ---------------------------------------------------------------------
    Sidebar
    ------------------------------------------------------------------ */
@@ -2357,6 +2397,11 @@ html[data-theme="dark"] .panel::after {
     width: 34px;
     height: 34px;
     border-radius: 8px;
+  }
+
+  .lang-switch {
+    height: 34px;
+    margin-right: 6px;
   }
 
   .sidebar {
