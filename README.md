@@ -1,5 +1,7 @@
 # tCK Atlas
 
+**Live:** https://qmjianda.github.io/tck-atlas/
+
 **DDR timing, mapped.** An offline DDR4 / DDR5 timing-parameter atlas that explains where each parameter starts, where it ends, and how it relates to its neighbours — through waveforms, measurement brackets and readout cards. Ships in Chinese and English, in light and dark themes.
 
 **DDR 时序参数图谱。** 一个离线可用的 DDR4 / DDR5 时序参数百科，用波形、测量括号和读数卡解释参数从哪里起算、到哪里结束，以及它和相邻时序之间的关系。提供中文 / 英文两种界面，以及亮色 / 暗色两套主题。
@@ -22,7 +24,7 @@
 
 ### Opening it
 
-Double-click `index.html`. The page uses local scripts and hash routing, so it runs fully from `file://`.
+The site is deployed on GitHub Pages: **https://qmjianda.github.io/tck-atlas/**. To run it locally, double-click `index.html` — the page uses local scripts and hash routing, so it runs fully from `file://`.
 
 You can also serve the folder statically:
 
@@ -96,7 +98,7 @@ tck-atlas/
 └─ README.md
 ```
 
-No npm dependencies and no build output.
+No npm dependencies and no build output. GitHub Pages serves the repository root directly, so pushing to `main` updates the live site.
 
 ### Adding a parameter
 
@@ -181,7 +183,9 @@ Modern browsers: `color-mix()`, `prefers-color-scheme`, `100dvh`, SVG patterns a
 
 ### 打开方式
 
-直接双击 `index.html` 即可。页面使用本地脚本和 hash 路由，`file://` 环境下可以完整运行。
+在线版本已部署在 GitHub Pages：**https://qmjianda.github.io/tck-atlas/**。
+
+也可以直接双击 `index.html` 本地运行。页面使用本地脚本和 hash 路由，`file://` 环境下可以完整运行。
 
 也可以在当前目录启动一个静态服务器：
 
@@ -255,7 +259,7 @@ tck-atlas/
 └─ README.md
 ```
 
-没有 npm 依赖，也没有构建产物。
+没有 npm 依赖，也没有构建产物。GitHub Pages 直接托管仓库根目录，推送到 `main` 即更新线上站点。
 
 ### 扩展一个新参数
 
