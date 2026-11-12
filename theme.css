@@ -1938,24 +1938,25 @@ html[data-theme="dark"] .panel::after {
 }
 
 .calc-field__top {
+  flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 2px;
 }
 
 .calc-field__top b {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   max-width: 100%;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 
 .calc-field__top > span {
   flex: 0 1 auto;
-  min-width: 0;
-  margin-left: auto;
+  max-width: 100%;
+  margin-left: 0;
   color: var(--faint);
-  font-size: 9.5px;
-  text-align: right;
+  font-size: 9px;
+  text-align: left;
 }
 
 .calc-field__control {
