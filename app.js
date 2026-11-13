@@ -1740,7 +1740,7 @@ ${rows}
         <section class="panel rounding-panel">
           <div class="panel-head">
             <div><span class="section-index">ROUNDING / 04</span><h3>${uiText('calc.roundTitle')}</h3></div>
-            <span class="panel-head__note">PS → tCK · CEIL</span>
+            <span class="panel-head__note">PS → tCK · DDR4 ≠ DDR5</span>
           </div>
           <p class="rounding-lead">${uiText('calc.roundIntro')}</p>
 
@@ -1748,7 +1748,16 @@ ${rows}
             <div class="rounding-rules">
               <article class="round-card is-active" data-round-card="spd">
                 <header><span>SPD</span><b>${uiText('calc.roundSpdName')}</b></header>
-                <code>nCK = ceil( <i>P</i> / <i>T</i> − 0.025 )</code>
+                <div class="round-variant" data-round-gen="ddr4">
+                  <span>DDR4</span>
+                  <code>nCK ≈ ceil( <i>P</i> / <i>T</i> − 0.025 )</code>
+                  <small>(P × 1000 ÷ T + 974) ÷ 1000</small>
+                </div>
+                <div class="round-variant" data-round-gen="ddr5">
+                  <span>DDR5</span>
+                  <code>nCK = floor( 0.997 × <i>P</i> / <i>T</i> ) + 1</code>
+                  <small>(P × 997 ÷ T + 1000) ÷ 1000</small>
+                </div>
                 <p>${uiText('calc.roundSpdDesc')}</p>
               </article>
               <article class="round-card" data-round-card="nonspd">
@@ -1758,7 +1767,7 @@ ${rows}
               </article>
               <div class="round-gap">
                 <b>${uiText('calc.roundGapTitle')}</b>
-                <code>x = 40.010 → SPD <i>40</i> · NON-SPD <i>41</i></code>
+                <code>x = 28.050 → DDR4 <i>29</i> · DDR5 <i>28</i></code>
                 <span>${uiText('calc.roundGapNote')}</span>
               </div>
             </div>
@@ -1788,15 +1797,15 @@ ${rows}
                 </div>
                 <div class="round-ruler" title="${esc(uiText('calc.roundTolerance'))}">
                   <span class="round-ruler__caption">${uiText('calc.roundFraction')}</span>
-                  <span class="round-ruler__band"></span>
+                  <span class="round-ruler__band" data-round="band"></span>
                   <i class="round-ruler__mark" data-round-marker></i>
                   <span class="round-ruler__tick round-ruler__tick--start">0</span>
                   <span class="round-ruler__tick round-ruler__tick--end">1</span>
                 </div>
                 <div class="round-step round-step--target is-active" data-round-row="spd">
-                  <span>ceil(x − 0.025)</span>
+                  <span data-round="spdLabel">ceil(x − 0.025)</span>
                   <code><b data-round="spd">28</b> tCK</code>
-                  <small>SPD</small>
+                  <small data-round="genLabel">DDR5 · SPD</small>
                 </div>
                 <div class="round-step round-step--target" data-round-row="nonspd">
                   <span>ceil(x)</span>
@@ -1805,8 +1814,15 @@ ${rows}
                 </div>
                 <div class="round-step">
                   <span>${uiText('calc.roundIntLabel')}</span>
-                  <code>trunc((<b data-round="intP">9324</b> × 1000 ÷ <b data-round="intT">333.333</b> + 974) ÷ 1000) = <b data-round="int">28</b></code>
+                  <code data-round="intExpr">trunc((9324 × 997 ÷ 333.333 + 1000) ÷ 1000) = 28</code>
                 </div>
+              </div>
+
+              <div class="round-compare">
+                <span class="round-compare__title">${uiText('calc.roundCmpTitle')}</span>
+                <span class="round-compare__pill" data-round-gen="ddr4">DDR4 <b data-round="ddr4">28</b></span>
+                <span class="round-compare__pill" data-round-gen="ddr5">DDR5 <b data-round="ddr5">28</b></span>
+                <p data-round="drift"></p>
               </div>
 
               <div class="round-result">
@@ -1914,20 +1930,35 @@ ${rows}
     const tckPs = values.tck * 1000;
     const ps = Math.max(0, Number(calc.roundPs) || 0);
     const x = tckPs > 0 ? ps / tckPs : 0;
+    const ddr4 = Math.trunc((Math.trunc((ps * 1000) / tckPs) + 974) / 1000);
+    const ddr5 = Math.trunc((Math.trunc((ps * 997) / tckPs) + 1000) / 1000);
+    const generation = values.rate >= 4800 ? 'ddr5' : 'ddr4';
     return {
       values,
       tckPs,
       ps,
       x,
-      spd: Math.ceil(x - 0.025),
-      nonspd: Math.ceil(x),
-      integer: Math.trunc(Math.trunc((ps * 1000) / tckPs + 974) / 1000)
+      ddr4,
+      ddr5,
+      generation,
+      spd: generation === 'ddr5' ? ddr5 : ddr4,
+      nonspd: Math.ceil(x)
     };
+  }
+
+  function roundWindow(x, generation) {
+    let width = 0.025;
+    if (generation === 'ddr5') {
+      const scaled = 0.997 * Math.floor(x);
+      width = (1 - (scaled - Math.floor(scaled))) / 0.997;
+    }
+    return Math.min(0.5, Math.max(0.01, width));
   }
 
   function updateRoundUI() {
     if (!calculatorView.querySelector('[data-round="x"]')) return;
     const data = roundNumbers();
+    const ddr5 = data.generation === 'ddr5';
     const set = (key, text) => {
       $$(`[data-round="${key}"]`, calculatorView).forEach((node) => { node.textContent = text; });
     };
@@ -1935,17 +1966,31 @@ ${rows}
     set('tckNote', `2000 ÷ ${fmt(data.values.rate, 0)} = ${fmt(data.values.tck, 3)} ns`);
     set('x', fmt(data.x, 3));
     set('xNote', `${fmt(data.ps, 0)} ÷ ${fmt(data.tckPs, 3)}`);
+    set('spdLabel', ddr5 ? 'floor(0.997x) + 1' : 'ceil(x − 0.025)');
+    set('genLabel', `${ddr5 ? 'DDR5' : 'DDR4'} · SPD`);
     set('spd', String(data.spd));
     set('nonspd', String(data.nonspd));
-    set('int', String(data.integer));
-    set('intP', fmt(data.ps, 0));
-    set('intT', fmt(data.tckPs, 3));
+    set('ddr4', String(data.ddr4));
+    set('ddr5', String(data.ddr5));
+    set(
+      'intExpr',
+      ddr5
+        ? `trunc((${fmt(data.ps, 0)} × 997 ÷ ${fmt(data.tckPs, 3)} + 1000) ÷ 1000) = ${data.ddr5}`
+        : `trunc((${fmt(data.ps, 0)} × 1000 ÷ ${fmt(data.tckPs, 3)} + 974) ÷ 1000) = ${data.ddr4}`
+    );
+    set('drift', data.ddr4 === data.ddr5 ? uiText('calc.roundDriftSame') : uiText('calc.roundDriftDiff'));
     set('result', String(calc.roundKind === 'nonspd' ? data.nonspd : data.spd));
     set('verdict', data.spd === data.nonspd ? uiText('calc.roundSame') : uiText('calc.roundDiff'));
 
     const frac = Math.min(1, Math.max(0, data.x - Math.floor(data.x)));
     $$('[data-round-marker]', calculatorView).forEach((node) => {
       node.style.left = `${(frac * 100).toFixed(2)}%`;
+    });
+    $$('[data-round="band"]', calculatorView).forEach((node) => {
+      node.style.width = `${(roundWindow(data.x, data.generation) * 100).toFixed(1)}%`;
+    });
+    $$('[data-round-gen]', calculatorView).forEach((node) => {
+      node.classList.toggle('is-active', node.dataset.roundGen === data.generation);
     });
     $$('[data-round-row]', calculatorView).forEach((node) => {
       node.classList.toggle('is-active', node.dataset.roundRow === calc.roundKind);

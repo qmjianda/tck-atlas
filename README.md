@@ -18,7 +18,7 @@
 - 16 common DDR4 / DDR5 timing parameters
 - 3 views: the parameter atlas, a full read-write sequence, and a cycle calculator
 - A profile lab: one sample module, several timing plans, and a waveform that rebuilds from them
-- A rounding panel: ps → cycles, the 0.025 SPD tolerance window, and the integer form
+- A rounding panel: ps → cycles, the DDR4 vs DDR5 constants, the integer forms and the tolerance window
 - Suffixed timing families (`tRFC1/2/sb`, `tRRD_L/S`, `tCCD_L/S/WR`, `tWTR_L/S`) compared scope by scope
 - Chinese / English interface with a header switch, remembered across visits
 - Light / dark themes that follow the system and remember your choice
@@ -61,7 +61,7 @@ Each parameter page contains an engineering definition and "how to read", an int
 
 Presets only change the data rate; fill the cycle parameters from your device's datasheet. Bandwidth here is a single-channel theoretical figure and excludes ranks, channels, protocol efficiency and controller overhead.
 
-**Rounding.** A fourth panel shows the step those numbers quietly take. A delay the SPD stored in nanoseconds converts as `nCK = ceil(P / T − 0.025)`; a quantity the controller already counts in cycles converts as plain `ceil(P / T)`. Both have the same integer form, `trunc((P × 1000 / T + 974) / 1000)` — `+999` turns the ÷1000 ceiling into a truncation, and `−25 + 999` collapses into `+974`. Type any P, switch the rule, and the panel redoes the arithmetic against the current speed bin; the 0.025 tolerance window is drawn on a one-cycle ruler, so you can see the narrow band where the two rules disagree by one cycle. It also warns about the two real mistakes: reordering the integer chain, and rounding an EXPO / XMP profile against the JEDEC period instead of its own.
+**Rounding.** A fourth panel shows the step those numbers quietly take — and it is not one rule, because DDR4 and DDR5 round with different constants. DDR4 uses `trunc((P × 1000 / T + 974) / 1000)`, which is `ceil(P / T − 0.025)`: a flat 0.025-cycle window. DDR5 uses `trunc((P × 997 / T + 1000) / 1000)`, exactly `floor(0.997 × P/T) + 1`: a window that grows with the cycle count (about 0.084 cycles at tAA 28, 0.12 at 40). A quantity the controller already counts in cycles skips both and just uses `ceil(P / T)`. Type any P, switch the rule, and the panel redoes the arithmetic against the current speed bin, showing both generations side by side; the tolerance window is drawn to scale on a one-cycle ruler, so the flat DDR4 band and the wider DDR5 band are visibly different. `x = 28.05` is the case that splits them: DDR4 reads 29, DDR5 reads 28. It also warns about the two real mistakes: reordering the integer chain, and rounding an EXPO / XMP profile against the JEDEC period instead of its own.
 
 ![ps → tCK 取整](docs/rounding.png)
 
@@ -198,7 +198,7 @@ Modern browsers: `color-mix()`, `prefers-color-scheme`, `100dvh`, SVG patterns a
 - 16 个 DDR4 / DDR5 常用时序参数
 - 3 个视图：参数图谱、完整读取时序、周期换算器
 - 配置档实验室：一根示例内存条、几套档位，以及由这些值重建的波形
-- 取整面板：ps → 周期、SPD 的 0.025 容差窗与整数式写法
+- 取整面板：ps → 周期、DDR4 与 DDR5 的两套常数、整数式与容差窗
 - 带后缀的时序族（`tRFC1/2/sb`、`tRRD_L/S`、`tCCD_L/S/WR`、`tWTR_L/S`）按作用域对照讲解
 - 中文 / 英文双语界面，顶栏切换，选择会被记住
 - 亮色 / 暗色双主题，跟随系统并记住手动选择
@@ -243,7 +243,7 @@ python -m http.server 8080
 
 速度档位切换只改变数据率；其余周期参数请按当前器件的手册填。这里的带宽是单通道理论值，不包含 rank、通道数、协议效率或控制器开销。
 
-**取整。** 第四块面板讲这一步：SPD 以 ns 写下的值按 `nCK = ceil(P / T − 0.025)` 换算，本来就算成周期的量按 `ceil(P / T)`；两者等价于同一个整数式 `trunc((P × 1000 / T + 974) / 1000)`——`+999` 把「除以 1000 的向上取整」改成截断，再和 `−25 + 999` 合并就成了 `+974`。填任意 P、切换规则，面板会按当前速度档重算一遍；下面那把「一个周期」的尺子画出 0.025 的容差窗，能直接看到两条规则只在窗内相差一个周期。面板也点出两个真会出错的坑：改动整数式的运算顺序，以及拿 JEDEC 的周期去套 EXPO / XMP 档的参数。
+**取整。** 第四块面板讲这一步——而且它不是一条规则：DDR4 与 DDR5 的常数不一样。DDR4 用 `trunc((P × 1000 / T + 974) / 1000)`，等于 `ceil(P / T − 0.025)`，是一个固定 0.025 个周期的窗口；DDR5 用 `trunc((P × 997 / T + 1000) / 1000)`，精确等于 `floor(0.997 × P/T) + 1`，窗口随周期数变宽（tAA 28 时约 0.084，40 时约 0.12）。本来就算成周期的量两条都不走，直接 `ceil(P / T)`。填任意 P、切换规则，面板会按当前速度档重算，并把两代的结果并排列出；容差窗按真实比例画在「一个周期」的尺子上，DDR4 的窄带和 DDR5 的宽带肉眼可分。`x = 28.05` 就是两代分岔的那个点：DDR4 读 29、DDR5 读 28。面板也点出两个真会出错的坑：改动整数式的运算顺序，以及拿 JEDEC 的周期去套 EXPO / XMP 档的参数。
 
 ![ps → tCK 取整](docs/rounding.png)
 
