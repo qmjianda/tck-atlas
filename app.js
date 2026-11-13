@@ -79,7 +79,9 @@
     trfc: 350,
     trefi: 7.8,
     probeCycles: 16,
-    probeNs: 10
+    probeNs: 10,
+    roundPs: 9324,
+    roundKind: 'spd'
   };
 
   const byId = new Map(params.map((param) => [param.id, param]));
@@ -1735,6 +1737,96 @@ ${rows}
           <p class="probe-note">${uiText('calc.probeNote')}</p>
         </section>
 
+        <section class="panel rounding-panel">
+          <div class="panel-head">
+            <div><span class="section-index">ROUNDING / 04</span><h3>${uiText('calc.roundTitle')}</h3></div>
+            <span class="panel-head__note">PS → tCK · CEIL</span>
+          </div>
+          <p class="rounding-lead">${uiText('calc.roundIntro')}</p>
+
+          <div class="rounding-grid">
+            <div class="rounding-rules">
+              <article class="round-card is-active" data-round-card="spd">
+                <header><span>SPD</span><b>${uiText('calc.roundSpdName')}</b></header>
+                <code>nCK = ceil( <i>P</i> / <i>T</i> − 0.025 )</code>
+                <p>${uiText('calc.roundSpdDesc')}</p>
+              </article>
+              <article class="round-card" data-round-card="nonspd">
+                <header><span>NON-SPD</span><b>${uiText('calc.roundNsName')}</b></header>
+                <code>nCK = ceil( <i>P</i> / <i>T</i> )</code>
+                <p>${uiText('calc.roundNsDesc')}</p>
+              </article>
+              <div class="round-gap">
+                <b>${uiText('calc.roundGapTitle')}</b>
+                <code>x = 40.010 → SPD <i>40</i> · NON-SPD <i>41</i></code>
+                <span>${uiText('calc.roundGapNote')}</span>
+              </div>
+            </div>
+
+            <div class="rounding-work">
+              <div class="round-work__head">
+                <label class="round-input">
+                  <span>${uiText('calc.roundPs')}</span>
+                  <span class="round-input__box"><input type="number" inputmode="numeric" min="0" max="999999" step="1" data-round-input="ps" value="${esc(calc.roundPs)}" aria-label="${esc(uiText('calc.roundPs'))}"><em>ps</em></span>
+                </label>
+                <div class="round-kind" role="group" aria-label="${esc(uiText('calc.roundKind'))}">
+                  <button type="button" data-round-kind="spd" class="is-active" aria-pressed="true">SPD</button>
+                  <button type="button" data-round-kind="nonspd" aria-pressed="false">NON-SPD</button>
+                </div>
+              </div>
+
+              <div class="round-steps">
+                <div class="round-step">
+                  <span>${uiText('calc.roundTck')}</span>
+                  <code>T = <b data-round="tckPs">333.333</b> ps</code>
+                  <small data-round="tckNote">2000 ÷ 6000 = 0.333 ns</small>
+                </div>
+                <div class="round-step">
+                  <span>${uiText('calc.roundX')}</span>
+                  <code>x = <b data-round="x">27.972</b></code>
+                  <small data-round="xNote">9324 ÷ 333.333</small>
+                </div>
+                <div class="round-ruler" title="${esc(uiText('calc.roundTolerance'))}">
+                  <span class="round-ruler__caption">${uiText('calc.roundFraction')}</span>
+                  <span class="round-ruler__band"></span>
+                  <i class="round-ruler__mark" data-round-marker></i>
+                  <span class="round-ruler__tick round-ruler__tick--start">0</span>
+                  <span class="round-ruler__tick round-ruler__tick--end">1</span>
+                </div>
+                <div class="round-step round-step--target is-active" data-round-row="spd">
+                  <span>ceil(x − 0.025)</span>
+                  <code><b data-round="spd">28</b> tCK</code>
+                  <small>SPD</small>
+                </div>
+                <div class="round-step round-step--target" data-round-row="nonspd">
+                  <span>ceil(x)</span>
+                  <code><b data-round="nonspd">28</b> tCK</code>
+                  <small>NON-SPD</small>
+                </div>
+                <div class="round-step">
+                  <span>${uiText('calc.roundIntLabel')}</span>
+                  <code>trunc((<b data-round="intP">9324</b> × 1000 ÷ <b data-round="intT">333.333</b> + 974) ÷ 1000) = <b data-round="int">28</b></code>
+                </div>
+              </div>
+
+              <div class="round-result">
+                <span>${uiText('calc.roundResult')}</span>
+                <strong><b data-round="result">28</b><em>tCK</em></strong>
+                <small data-round="verdict"></small>
+              </div>
+
+              <button class="text-button round-preset" type="button" data-round-preset>${uiText('calc.roundPreset')}</button>
+            </div>
+          </div>
+
+          <div class="rounding-notes">
+            <div class="round-note"><b>${uiText('calc.roundIntNote')}</b></div>
+            <div class="round-note"><b>${uiText('calc.roundOrderTitle')}</b><span>${uiText('calc.roundOrder')}</span></div>
+            <div class="round-note round-note--warn"><b>${uiText('calc.roundTckWarn')}</b></div>
+          </div>
+          <p class="rounding-ref">${uiText('calc.roundRef')}</p>
+        </section>
+
         <p class="calculator-disclaimer">${uiText('calc.disclaimer')}</p>
       </div>`;
 
@@ -1814,6 +1906,58 @@ ${rows}
 
     $$('[data-probe-tck]', calculatorView).forEach((node) => { node.textContent = tckText; });
     updateProbeUI(values.tck);
+    updateRoundUI();
+  }
+
+  function roundNumbers() {
+    const values = getCalcValues();
+    const tckPs = values.tck * 1000;
+    const ps = Math.max(0, Number(calc.roundPs) || 0);
+    const x = tckPs > 0 ? ps / tckPs : 0;
+    return {
+      values,
+      tckPs,
+      ps,
+      x,
+      spd: Math.ceil(x - 0.025),
+      nonspd: Math.ceil(x),
+      integer: Math.trunc(Math.trunc((ps * 1000) / tckPs + 974) / 1000)
+    };
+  }
+
+  function updateRoundUI() {
+    if (!calculatorView.querySelector('[data-round="x"]')) return;
+    const data = roundNumbers();
+    const set = (key, text) => {
+      $$(`[data-round="${key}"]`, calculatorView).forEach((node) => { node.textContent = text; });
+    };
+    set('tckPs', fmt(data.tckPs, 3));
+    set('tckNote', `2000 ÷ ${fmt(data.values.rate, 0)} = ${fmt(data.values.tck, 3)} ns`);
+    set('x', fmt(data.x, 3));
+    set('xNote', `${fmt(data.ps, 0)} ÷ ${fmt(data.tckPs, 3)}`);
+    set('spd', String(data.spd));
+    set('nonspd', String(data.nonspd));
+    set('int', String(data.integer));
+    set('intP', fmt(data.ps, 0));
+    set('intT', fmt(data.tckPs, 3));
+    set('result', String(calc.roundKind === 'nonspd' ? data.nonspd : data.spd));
+    set('verdict', data.spd === data.nonspd ? uiText('calc.roundSame') : uiText('calc.roundDiff'));
+
+    const frac = Math.min(1, Math.max(0, data.x - Math.floor(data.x)));
+    $$('[data-round-marker]', calculatorView).forEach((node) => {
+      node.style.left = `${(frac * 100).toFixed(2)}%`;
+    });
+    $$('[data-round-row]', calculatorView).forEach((node) => {
+      node.classList.toggle('is-active', node.dataset.roundRow === calc.roundKind);
+    });
+    $$('[data-round-card]', calculatorView).forEach((node) => {
+      node.classList.toggle('is-active', node.dataset.roundCard === calc.roundKind);
+    });
+    $$('[data-round-kind]', calculatorView).forEach((node) => {
+      const active = node.dataset.roundKind === calc.roundKind;
+      node.classList.toggle('is-active', active);
+      node.setAttribute('aria-pressed', String(active));
+    });
   }
 
   function updateProbeUI(tck) {
@@ -1919,6 +2063,15 @@ ${rows}
           calc[key] = value;
           updateProbeUI();
         }
+        return;
+      }
+      const roundField = event.target.closest('[data-round-input]');
+      if (roundField) {
+        const value = Number(roundField.value);
+        if (Number.isFinite(value) && value >= 0) {
+          calc.roundPs = Math.min(999999, value);
+          updateRoundUI();
+        }
       }
     });
 
@@ -1937,6 +2090,23 @@ ${rows}
         updateCalcUI();
         return;
       }
+      const roundKind = event.target.closest('[data-round-kind]');
+      if (roundKind) {
+        calc.roundKind = roundKind.dataset.roundKind;
+        updateRoundUI();
+        return;
+      }
+      if (event.target.closest('[data-round-preset]')) {
+        calc.rate = 6000;
+        calc.roundPs = 9324;
+        calc.roundKind = 'spd';
+        const rateField = $('[data-calc-field="rate"]', calculatorView);
+        if (rateField) rateField.value = '6000';
+        const psField = $('[data-round-input="ps"]', calculatorView);
+        if (psField) psField.value = '9324';
+        updateCalcUI();
+        return;
+      }
       if (event.target.closest('[data-calc-reset]')) {
         Object.assign(calc, {
           rate: 3200,
@@ -1949,7 +2119,9 @@ ${rows}
           trfc: 350,
           trefi: 7.8,
           probeCycles: 16,
-          probeNs: 10
+          probeNs: 10,
+          roundPs: 9324,
+          roundKind: 'spd'
         });
         mountCalculator();
         showToast(uiText('calc.resetToast'));
