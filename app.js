@@ -1,4 +1,4 @@
-﻿/* tCK Atlas — application shell, waveform renderer and calculator. */
+/* tCK Atlas — application shell, waveform renderer and calculator. */
 (function () {
   'use strict';
 
@@ -11,6 +11,7 @@
   const params = DATA.params;
   const categories = DATA.categories;
   const overview = DATA.overview;
+  const LAB = window.DDR_LAB || null;
   const DEFAULT_ID = 'trcd';
   const LANG_KEY = 'tck-atlas-lang';
   const I18N = window.DDR_ATLAS_I18N || { ui: { zh: {}, en: {} }, params: {}, overview: {} };
@@ -39,6 +40,7 @@
   const atlasView = $('#atlasView');
   const sequenceView = $('#sequenceView');
   const calculatorView = $('#calculatorView');
+  const labView = $('#labView');
   const paramNav = $('#paramNav');
   const paramSearch = $('#paramSearch');
   const resultCount = $('#resultCount');
@@ -362,13 +364,15 @@
     }
     if (parts[0] === 'sequence') return { view: 'sequence', id: null, valid: true };
     if (parts[0] === 'calc') return { view: 'calculator', id: null, valid: true };
+    if (parts[0] === 'lab' && LAB && labView) return { view: 'lab', id: null, valid: true };
     return { view: 'atlas', id: DEFAULT_ID, valid: false };
   }
 
   const viewRoots = {
     atlas: atlasView,
     sequence: sequenceView,
-    calculator: calculatorView
+    calculator: calculatorView,
+    lab: labView
   };
 
   function updateViewTabs() {
@@ -427,6 +431,9 @@
     } else if (route.view === 'sequence') {
       mountSequence();
       document.title = uiText('sequence.docTitle');
+    } else if (route.view === 'lab') {
+      mountLab();
+      document.title = uiText('lab.docTitle');
     } else {
       mountCalculator();
       document.title = uiText('calc.docTitle');
@@ -434,6 +441,428 @@
 
     if (keepScroll) window.scrollTo(0, scrollY);
     else window.scrollTo(0, 0);
+  }
+
+  /* ---------------------------------------------------------------------
+     Profile Lab
+     ------------------------------------------------------------------ */
+  const lab = {
+    moduleId: 'ddr5-32-2r',
+    planId: 'jdec',
+    family: 'refresh',
+    dirty: false,
+    profile: null,
+    bound: false
+  };
+
+  const LAB_ROWS = [
+    { field: 'cl', sym: 'tCL', step: 1, unit: 'tCK', out: 'cl', alt: 'clNs' },
+    { field: 'trcd', sym: 'tRCD', step: 1, unit: 'tCK', out: 'trcd', alt: 'trcdNs' },
+    { field: 'trp', sym: 'tRP', step: 1, unit: 'tCK', out: 'trp', alt: 'trpNs' },
+    { field: 'tras', sym: 'tRAS', step: 1, unit: 'tCK', out: 'tras', alt: 'trasNs' },
+    { field: 'cwl', sym: 'tCWL', step: 1, unit: 'tCK', out: 'cwl', alt: 'cwlNs' },
+    { field: 'trfcNs', sym: 'tRFC', step: 5, unit: 'ns', out: 'trfcNs', alt: 'trfcCycles' }
+  ];
+
+  function ensureLabProfile() {
+    if (!lab.profile) {
+      const module = LAB.getModule(lab.moduleId);
+      lab.profile = LAB.normalise(module, LAB.getProfile(lab.moduleId, lab.planId));
+    }
+    return lab.profile;
+  }
+
+  function labRowHTML(profile, limit, spec) {
+    const range = limit[spec.field] || [0, 1];
+    const value = profile[spec.field];
+    return `
+        <div class="lab-row">
+          <span class="lab-row__sym">${symbol(spec.sym)}</span>
+          <input class="lab-row__range" type="range" min="${range[0]}" max="${range[1]}" step="${spec.step}" value="${value}" data-lab-field="${spec.field}" aria-label="${esc(spec.sym)}">
+          <span class="lab-row__num"><b data-lab-out="${spec.out}">${value}</b><i>${spec.unit}</i></span>
+          <span class="lab-row__alt" data-lab-out="${spec.alt}"></span>
+        </div>`;
+  }
+
+  function labHTML(profile) {
+    const model = LAB.getModule(profile.moduleId);
+    const limit = LAB.limits[profile.generation];
+    const bins = LAB.binsFor(profile.generation);
+    const binIndex = Math.max(0, bins.indexOf(profile.dataRate));
+
+    const moduleTabs = LAB.modules.map((item) => `
+          <button class="lab-module${item.id === model.id ? ' is-active' : ''}" type="button" data-lab-module="${item.id}" aria-pressed="${item.id === model.id}">
+            <b>${item.generation}</b>
+            <span>${item.capacityGB} GB</span>
+            <small>${item.organisation}</small>
+          </button>`).join('');
+
+    const plans = model.profiles.map((plan) => `
+          <button class="lab-plan${plan.id === profile.sourceId ? ' is-active' : ''}" type="button" data-lab-plan="${plan.id}" aria-pressed="${plan.id === profile.sourceId}">
+            <span class="lab-plan__kind">${LAB.planLabel(plan.kind)}</span>
+            <b>${model.generation}-${plan.dataRate}</b>
+            <small>CL${plan.cl} · ${ns((plan.cl * 2000) / plan.dataRate)} ns</small>
+            <em>${fmt(plan.voltageV, 2)} V</em>
+          </button>`).join('');
+
+    const facts = [
+      [uiText('lab.factGeneration'), model.generation],
+      [uiText('lab.factCapacity'), `${model.capacityGB} GB`],
+      [uiText('lab.factOrganisation'), model.organisation],
+      [uiText('lab.factVoltage'), `${fmt(profile.voltageV, 2)} V`]
+    ].map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('');
+
+    const chips = Array.from({ length: model.chips }, () => '<i></i>').join('');
+    const rows = LAB_ROWS.map((spec) => labRowHTML(profile, limit, spec)).join('');
+
+    return `
+      <div class="view-page lab-page">
+        <header class="lab-hero">
+          <div class="lab-hero__copy">
+            <p class="eyebrow"><span class="eyebrow__signal"></span><span>PROFILE LAB</span><span class="eyebrow__sep"></span><span>SPD · JEDEC · XMP</span></p>
+            <h1>${esc(uiText('lab.titleA'))}<span>${esc(uiText('lab.titleB'))}</span></h1>
+            <p class="lab-hero__intro">${esc(uiText('lab.intro'))}</p>
+            <div class="lab-hero__tags">
+              <span class="lab-badge">${esc(uiText('lab.badge'))}</span>
+              <span class="lab-hero__hint">${esc(uiText('lab.heroHint'))}</span>
+            </div>
+          </div>
+          <aside class="lab-hero__display">
+            <span>${esc(uiText('lab.heroLabel'))}</span>
+            <div class="lab-hero__number"><strong data-lab-out="tck">—</strong><em>ns</em></div>
+            <div class="lab-hero__meta"><span data-lab-out="binLabel">—</span><span data-lab-out="clockMHz">—</span></div>
+          </aside>
+        </header>
+
+        <div class="lab-grid">
+          <section class="panel lab-panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-index">SPECIMEN / A</span>
+                <h3>${esc(uiText('lab.specimenTitle'))}</h3>
+              </div>
+              <span class="lab-badge">${esc(uiText('lab.badge'))}</span>
+            </div>
+
+            <div class="lab-modules">${moduleTabs}</div>
+
+            <div class="lab-dimm">
+              <div class="lab-dimm__top"><b>${model.generation}</b><span>${model.capacityGB} GB · ${model.organisation}</span></div>
+              <div class="lab-dimm__chips">${chips}</div>
+              <div class="lab-dimm__pins"></div>
+            </div>
+
+            <dl class="lab-facts">${facts}</dl>
+
+            <div class="lab-plans-head">
+              <span class="section-index">PLANS</span>
+              <span class="lab-dirty" data-lab-dirty hidden>${esc(uiText('lab.modified'))}</span>
+              <button class="lab-reset" type="button" data-lab-reset>${esc(uiText('lab.reset'))}</button>
+            </div>
+            <div class="lab-plans">${plans}</div>
+            <p class="lab-note">${esc(uiText('lab.planNote'))}</p>
+          </section>
+
+          <section class="panel lab-panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-index">READOUT / B</span>
+                <h3>${esc(uiText('lab.readoutTitle'))}</h3>
+              </div>
+            </div>
+
+            <div class="lab-rate">
+              <div class="lab-rate__head">
+                <span class="section-index">${esc(uiText('lab.rateTitle'))}</span>
+                <code>1 t<sub>CK</sub> = 2000 ÷ <b data-lab-out="rate">${profile.dataRate}</b> MT/s</code>
+              </div>
+              <div class="lab-bar">
+                <span class="lab-bar__name">10 tCK</span>
+                <div class="lab-bar__track"><i data-lab-bar="tenTck"></i></div>
+                <span class="lab-bar__val" data-lab-out="tenTckNs">—</span>
+              </div>
+              <div class="lab-bar">
+                <span class="lab-bar__name">10 ns</span>
+                <div class="lab-bar__track"><i data-lab-bar="tenNs"></i></div>
+                <span class="lab-bar__val" data-lab-out="tenNsCycles">—</span>
+              </div>
+              <p class="lab-rate__note">${esc(uiText('lab.rateNote'))}</p>
+            </div>
+
+            <div class="lab-rows">
+              <div class="lab-row lab-row--rate">
+                <span class="lab-row__sym">${esc(uiText('lab.rate'))}</span>
+                <input class="lab-row__range" type="range" min="0" max="${bins.length - 1}" step="1" value="${binIndex}" data-lab-field="dataRate" data-lab-bins="1" aria-label="${esc(uiText('lab.rate'))}">
+                <span class="lab-row__num"><b data-lab-out="rate">${profile.dataRate}</b><i>MT/s</i></span>
+                <span class="lab-row__alt" data-lab-out="rateClock"></span>
+              </div>
+${rows}
+            </div>
+
+            <div class="lab-metrics">
+              <div>
+                <span>${esc(uiText('lab.metricRead'))}</span>
+                <div class="lab-metrics__val"><strong data-lab-out="readNs">—</strong><em>ns</em></div>
+                <small>tRCD + tCL</small>
+              </div>
+              <div>
+                <span>${esc(uiText('lab.metricRowCycle'))}</span>
+                <div class="lab-metrics__val"><strong data-lab-out="trcNs">—</strong><em>ns</em></div>
+                <small>tRAS + tRP</small>
+              </div>
+              <div>
+                <span>${esc(uiText('lab.metricBandwidth'))}</span>
+                <div class="lab-metrics__val"><strong data-lab-out="bandwidth">—</strong><em>GB/s</em></div>
+                <small>rate × 8 ÷ 1000</small>
+              </div>
+              <div>
+                <span>${esc(uiText('lab.metricRefresh'))}</span>
+                <div class="lab-metrics__val"><strong data-lab-out="refreshOverhead">—</strong><em>%</em></div>
+                <small>tRFC ÷ tREFI</small>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="lab-wave" data-lab-wave></section>
+
+        <section class="panel lab-fami" data-lab-fami></section>
+
+        <p class="lab-disclaimer">${esc(uiText('lab.disclaimer'))}</p>
+      </div>`;
+  }
+
+  /* One gap, drawn once: two commands and the bracket between them. */
+  function miniCaseSVG(item, maxCycles) {
+    const w = 460;
+    const h = 64;
+    const pl = 26;
+    const pr = 84;
+    const inner = w - pl - pr;
+    const x = (at) => pl + (at / maxCycles) * inner;
+    const tone = item.span.tone;
+    const x1 = x(item.span.from);
+    const x2 = x(item.span.to);
+    const tags = item.tags.map((tagItem) => {
+      const cx = x(tagItem.at);
+      return `<rect class="mini-tag mini-tag--${tagItem.kind}" x="${(cx - 19).toFixed(1)}" y="34" width="38" height="19" rx="4"></rect>
+          <text class="mini-tag__text" x="${cx.toFixed(1)}" y="47">${esc(tagItem.text)}</text>`;
+    }).join('');
+    const label = `${item.span.sym} · ${item.span.cycles} tCK · ${ns(item.span.ns)} ns`;
+    return `<svg class="mini__svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(item.span.sym)}">
+          <line class="mini-rail" x1="${pl}" y1="43" x2="${w - pr}" y2="43"></line>
+          <path class="mini-bracket mini-bracket--${tone}" d="M ${x1.toFixed(1)} 33 V 19 H ${x2.toFixed(1)} V 33"></path>
+          <text class="mini-bracket__label mini-bracket__label--${tone}" x="${x1.toFixed(1)}" y="12">${esc(label)}</text>
+          ${tags}
+        </svg>`;
+  }
+
+  function labFamilyHTML(profile) {
+    const families = LAB.familyView(profile);
+    const current = families.find((item) => item.id === lab.family) || families[0];
+    const tones = ['amber', 'cyan', 'violet', 'orange'];
+
+    const tabs = families.map((item) => `
+            <button class="lab-tab${item.id === current.id ? ' is-active' : ''}" type="button" role="tab"
+              aria-selected="${item.id === current.id}" data-lab-fam="${item.id}">${esc(pick(item.tab.zh, item.tab.en))}<b>${item.rows.length}</b></button>`).join('');
+
+    const viz = current.kind === 'bars'
+      ? `<div class="lab-scope">${current.bars.map((bar, index) => `
+              <div class="lab-scope__row">
+                <div class="lab-scope__name"><b>${esc(bar.sym)}</b><span>${esc(pick(bar.scope.zh, bar.scope.en))}</span></div>
+                <div class="lab-scope__track"><i class="lab-scope__fill lab-scope__fill--${tones[index % tones.length]}" style="width:${bar.pct.toFixed(1)}%"></i></div>
+                <span class="lab-scope__val"><b>${ns(bar.ns)}</b> ns</span>
+              </div>`).join('')}${current.vizNote ? `<p class="lab-scope__note">${esc(pick(current.vizNote.zh, current.vizNote.en))}</p>` : ''}</div>`
+      : `<div class="lab-cases">${current.cases.map((item) => `
+              <div class="mini">
+                <span class="mini__label">${esc(pick(item.label.zh, item.label.en))}</span>
+                ${miniCaseSVG(item, current.maxCycles)}
+                <p class="mini__note">${esc(pick(item.note.zh, item.note.en))}</p>
+              </div>`).join('')}</div>`;
+
+    const rows = current.rows.map((row) => `
+              <tr>
+                <th scope="row"><b>${esc(row.sym)}</b>${row.alias ? `<i>${esc(typeof row.alias === 'string' ? row.alias : pick(row.alias.zh, row.alias.en))}</i>` : ''}${row.mirror ? `<i class="lab-mirror">≡ ${esc(row.mirror)}</i>` : ''}</th>
+                <td>${Math.round(row.cycles)}<small>tCK</small></td>
+                <td>${ns(row.ns)}<small>ns</small></td>
+                <td>${esc(pick(row.scope.zh, row.scope.en))}</td>
+              </tr>`).join('');
+
+    return `
+          <div class="panel-head">
+            <div>
+              <span class="section-index">SUFFIXES / D</span>
+              <h3>${esc(uiText('lab.suffixTitle'))}</h3>
+            </div>
+            <span class="lab-kicker">${esc(current.kicker)}</span>
+          </div>
+
+          <p class="lab-fami__intro">${esc(uiText('lab.suffixIntro'))}</p>
+
+          <div class="lab-tabs" role="tablist">${tabs}</div>
+
+          <div class="lab-fami__body">
+            <div class="lab-fami__viz">${viz}</div>
+            <div class="lab-fami__side">
+              <h4>${esc(pick(current.title.zh, current.title.en))}</h4>
+              <p class="lab-fami__lead">${esc(pick(current.lead.zh, current.lead.en))}</p>
+              <table class="lab-table">
+                <thead><tr><th>${esc(uiText('lab.colName'))}</th><th>${esc(uiText('lab.colCycles'))}</th><th>${esc(uiText('lab.colNs'))}</th><th>${esc(uiText('lab.colScope'))}</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+              <p class="lab-fami__note">${esc(pick(current.note.zh, current.note.en))}</p>
+            </div>
+          </div>`;
+  }
+
+  function renderLabFamily() {
+    const host = $('[data-lab-fami]', labView);
+    if (!host) return;
+    host.innerHTML = labFamilyHTML(lab.profile);
+  }
+
+  function labTrace() {
+    const trace = LAB.buildTrace(lab.profile);
+    trace.caption = uiText('lab.waveCaption');
+    trace.spans.forEach((span) => {
+      span.caption = `${span.cycles} tCK · ${ns(span.ns)} ns`;
+      span.desc = uiText(`lab.span.${span.key}`);
+    });
+    return trace;
+  }
+
+  function updateLabReadouts() {
+    const profile = lab.profile;
+    const derived = LAB.derive(profile);
+    const set = (key, value) => {
+      $$(`[data-lab-out="${key}"]`, labView).forEach((node) => {
+        node.textContent = value;
+      });
+    };
+
+    set('tck', fmt(derived.tck, 3));
+    set('binLabel', LAB.binLabel(profile));
+    set('clockMHz', `${fmt(derived.clockMHz, 0)} MHz`);
+    set('rate', String(profile.dataRate));
+    set('rateClock', `${fmt(derived.clockMHz, 0)} MHz`);
+    set('cl', String(profile.cl));
+    set('clNs', `${ns(derived.clNs)} ns`);
+    set('trcd', String(profile.trcd));
+    set('trcdNs', `${ns(derived.trcdNs)} ns`);
+    set('trp', String(profile.trp));
+    set('trpNs', `${ns(derived.trpNs)} ns`);
+    set('tras', String(profile.tras));
+    set('trasNs', `${ns(derived.trasNs)} ns`);
+    set('cwl', String(profile.cwl));
+    set('cwlNs', `${ns(derived.cwlNs)} ns`);
+    set('trfcNs', String(profile.trfcNs));
+    set('trfcCycles', `${fmt(derived.trfcCycles, 0)} tCK`);
+    set('readNs', ns(derived.readNs));
+    set('trcNs', ns(derived.trcNs));
+    set('bandwidth', ns(derived.bandwidth));
+    set('refreshOverhead', fmt(derived.refreshOverhead, 2));
+    set('tenTckNs', `${ns(derived.tenTckNs)} ns`);
+    set('tenNsCycles', `${fmt(derived.tenNsCycles, 0)} tCK`);
+
+    const scale = Math.max(10, derived.tenTckNs);
+    $$('[data-lab-bar]', labView).forEach((node) => {
+      const value = node.dataset.labBar === 'tenTck' ? derived.tenTckNs : 10;
+      node.style.width = `${Math.max(4, (value / scale) * 100)}%`;
+    });
+
+    $$('[data-lab-dirty]', labView).forEach((node) => {
+      node.hidden = !lab.dirty;
+    });
+  }
+
+  function renderLabWave() {
+    const host = $('[data-lab-wave]', labView);
+    if (!host) return;
+    stopAllWaves();
+    const trace = labTrace();
+    host.innerHTML = wavePanelHTML(trace, {
+      kicker: 'PROFILE TRACE / C',
+      title: uiText('lab.waveTitle')
+    });
+    const panel = $('[data-wave-panel]', host);
+    if (panel) enhanceWave(panel, trace);
+  }
+
+  function applyLabField(field) {
+    const profile = lab.profile;
+    const value = Number(field.value);
+    if (!Number.isFinite(value)) return;
+    if (field.dataset.labBins) {
+      const bins = LAB.binsFor(profile.generation);
+      profile.dataRate = bins[Math.round(value)] || profile.dataRate;
+    } else {
+      profile[field.dataset.labField] = value;
+    }
+    lab.dirty = true;
+  }
+
+  function loadLabPlan(moduleId, planId) {
+    const module = LAB.getModule(moduleId);
+    const plan = LAB.getProfile(moduleId, planId);
+    lab.moduleId = module.id;
+    lab.planId = plan.id;
+    lab.profile = LAB.normalise(module, plan);
+    lab.dirty = false;
+    mountLab();
+  }
+
+  function bindLabEvents() {
+    if (lab.bound || !labView) return;
+    lab.bound = true;
+
+    labView.addEventListener('input', (event) => {
+      const field = event.target.closest('[data-lab-field]');
+      if (!field) return;
+      applyLabField(field);
+      updateLabReadouts();
+    });
+
+    labView.addEventListener('change', (event) => {
+      const field = event.target.closest('[data-lab-field]');
+      if (!field) return;
+      applyLabField(field);
+      updateLabReadouts();
+      renderLabWave();
+      renderLabFamily();
+    });
+
+    labView.addEventListener('click', (event) => {
+      const familyButton = event.target.closest('[data-lab-fam]');
+      if (familyButton) {
+        const next = familyButton.dataset.labFam;
+        if (next === lab.family) return;
+        lab.family = next;
+        renderLabFamily();
+        return;
+      }
+      const moduleButton = event.target.closest('[data-lab-module]');
+      if (moduleButton) {
+        const module = LAB.getModule(moduleButton.dataset.labModule);
+        loadLabPlan(module.id, module.profiles[0].id);
+        return;
+      }
+      const planButton = event.target.closest('[data-lab-plan]');
+      if (planButton) {
+        loadLabPlan(lab.moduleId, planButton.dataset.labPlan);
+        return;
+      }
+      if (event.target.closest('[data-lab-reset]')) loadLabPlan(lab.moduleId, lab.planId);
+    });
+  }
+
+  function mountLab() {
+    if (!LAB || !labView) return;
+    ensureLabProfile();
+    bindLabEvents();
+    labView.innerHTML = labHTML(lab.profile);
+    updateLabReadouts();
+    renderLabWave();
+    renderLabFamily();
   }
 
   /* ---------------------------------------------------------------------
@@ -1004,6 +1433,13 @@
         const progress = ((now - startedAt) / duration) % 1;
         const x = origin + progress * cycleCount * step;
         if (playhead) playhead.setAttribute('transform', `translate(${x.toFixed(2)},0)`);
+        if (scroller) {
+          const maxScroll = scroller.scrollWidth - scroller.clientWidth;
+          if (maxScroll > 8) {
+            const wanted = x - scroller.clientWidth * 0.55;
+            scroller.scrollLeft = Math.max(0, Math.min(maxScroll, wanted));
+          }
+        }
         const cycle = Math.min(cycleCount - 1, Math.floor(progress * cycleCount));
         if (scanCycle) scanCycle.textContent = `T${String(cycle).padStart(2, '0')}`;
         panel._raf = window.requestAnimationFrame(tick);
@@ -1015,9 +1451,15 @@
     if (scroller) {
       const syncScrollHint = () => {
         if (!panel.isConnected) return;
-        panel.classList.toggle('is-scrollable', scroller.scrollWidth > scroller.clientWidth + 10);
+        const scrollable = scroller.scrollWidth > scroller.clientWidth + 10;
+        panel.classList.toggle('is-scrollable', scrollable);
+        panel.classList.toggle(
+          'is-scroll-end',
+          scrollable && scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 12
+        );
       };
       syncScrollHint();
+      scroller.addEventListener('scroll', syncScrollHint, { passive: true });
       if ('ResizeObserver' in window) {
         const observer = new ResizeObserver(() => {
           if (!panel.isConnected) {
@@ -1052,7 +1494,7 @@
       <div class="view-page sequence-page">
         <header class="sequence-hero">
           <div class="sequence-hero__copy">
-            <div class="eyebrow"><span class="eyebrow__signal"></span><span>SEQUENCE / ONE READ, END TO END</span></div>
+            <div class="eyebrow"><span class="eyebrow__signal"></span><span>SEQUENCE / ONE ACCESS, READ + WRITE</span></div>
             <h1>${uiText('sequence.titleA')}<br><span>${uiText('sequence.titleB')}</span></h1>
             <p>${esc(view.intro)}</p>
             <div class="hero-actions">
@@ -1103,6 +1545,11 @@
             <span>READ PATH</span>
             <code>t<sub>RCD</sub> + t<sub>CL</sub> → first DQ</code>
             <p>${uiText('sequence.formulaRead')}</p>
+          </div>
+          <div class="formula-item">
+            <span>WRITE PATH</span>
+            <code>t<sub>RCD</sub> + t<sub>CWL</sub> → first DQ</code>
+            <p>${uiText('sequence.formulaWrite')}</p>
           </div>
           <div class="formula-item">
             <span>BUS OCCUPANCY</span>
@@ -1402,6 +1849,8 @@
           window.location.hash = `#/p/${ui.activeParam || DEFAULT_ID}`;
         } else if (button.dataset.view === 'sequence') {
           window.location.hash = '#/sequence';
+        } else if (button.dataset.view === 'lab') {
+          window.location.hash = '#/lab';
         } else {
           window.location.hash = '#/calc';
         }

@@ -921,44 +921,53 @@
   });
 
   const OVERVIEW = {
-    title: '一次读取的完整时序',
+    title: '一次读写的完整时序',
     kicker: 'FROM ACTIVATE TO NEXT ROW',
-    intro: '把 ACT、READ、数据突发、PRE 和下一次 ACT 放在同一条时间线上，就能看到 tRCD、tCL、tBurst、tRAS、tRP 与 tRC 如何拼接成一个行周期。',
-    note: '以下周期数仅用于展示参数之间的先后关系，不对应某一个具体的 JEDEC speed bin。',
+    intro: '把 ACT、WRITE、写数据、换向、READ、读数据、PRE 和下一次 ACT 放在同一条时间线上：tRCD 决定什么时候能发第一条列命令，tCWL 决定写数据什么时候上总线，tWTR 是写完掉头读的代价，tCL 是读回来的等待，tWR 与 tRAS 一起决定什么时候允许关行。',
+    note: '以下周期数仅用于展示参数之间的先后关系，不对应某一个具体的 JEDEC speed bin；波形可以左右滚动。',
     trace: {
-      cycles: 21,
+      cycles: 34,
       commands: [
         { at: 1, label: 'ACT', kind: 'act', sub: 'BG0 / A' },
-        { at: 5, label: 'READ', kind: 'read', sub: 'COL n' },
-        { at: 15, label: 'PRE', kind: 'pre', sub: 'BANK 0' },
-        { at: 19, label: 'ACT', kind: 'act', sub: 'ROW n+1' }
+        { at: 5, label: 'WRITE', kind: 'write', sub: 'COL k' },
+        { at: 16, label: 'READ', kind: 'read', sub: 'COL m' },
+        { at: 28, label: 'PRE', kind: 'pre', sub: 'BANK 0' },
+        { at: 32, label: 'ACT', kind: 'act', sub: 'ROW n+1' }
       ],
       auxLanes: [
         {
           label: 'BANK 0',
           segments: [
-            { from: 1, to: 15, label: 'ROW ACTIVE', kind: 'active' },
-            { from: 15, to: 19, label: 'PRECHARGING', kind: 'pre' },
-            { from: 19, to: 21, label: 'ROW ACTIVE', kind: 'active' }
+            { from: 1, to: 28, label: 'ROW ACTIVE', kind: 'active' },
+            { from: 28, to: 32, label: 'PRECHARGING', kind: 'pre' },
+            { from: 32, to: 34, label: 'ROW ACTIVE', kind: 'active' }
           ]
         }
       ],
-      dataBursts: [{ from: 9, to: 13, cells: D8, kind: 'read' }],
+      dataBursts: [
+        { from: 9, to: 13, cells: D8, kind: 'write' },
+        { from: 21, to: 25, cells: D8, kind: 'read' }
+      ],
       spans: [
-        { from: 1, to: 5, label: 'tRCD', kind: 'amber', caption: '行激活 → 列命令', target: 'trcd', desc: '从 ACT 到 READ 的等待。', row: 0 },
-        { from: 5, to: 9, label: 'tCL', kind: 'cyan', caption: 'READ → 首拍数据', target: 'tcas', desc: '读命令到首拍数据。', row: 0 },
-        { from: 9, to: 13, label: 'tBurst', kind: 'orange', caption: 'BL8 数据窗口', target: 'tburst', desc: '8 拍数据占用 4 个时钟周期。', row: 0 },
-        { from: 1, to: 15, label: 'tRAS', kind: 'violet', caption: '行保持到 PRE', target: 'tras', desc: '行激活到允许预充电的最短时间。', row: 1 },
-        { from: 15, to: 19, label: 'tRP', kind: 'muted', caption: 'PRE → 下一次 ACT', target: 'trp', desc: '关行恢复时间。', row: 1 },
-        { from: 1, to: 19, label: 'tRC', kind: 'primary', caption: '同 Bank ACT → ACT', target: 'trc', desc: '整个行周期的总长度，等于 tRAS + tRP。', row: 2 }
+        { from: 1, to: 5, label: 'tRCD', kind: 'amber', caption: '行激活 → 列命令', target: 'trcd', desc: '从 ACT 到第一条列命令（这里是 WRITE）的等待。', row: 0 },
+        { from: 5, to: 9, label: 'tCWL', kind: 'violet', caption: 'WRITE → 写数据首拍', target: 'tcwl', desc: '写延迟：命令发出后，控制器把第一拍数据推上总线。', row: 0 },
+        { from: 9, to: 13, label: 'tBurst', kind: 'orange', caption: 'BL8 写数据窗口', target: 'tburst', desc: '8 拍写数据在总线上占 4 个时钟周期。', row: 0 },
+        { from: 13, to: 16, label: 'tWTR', kind: 'muted', caption: '写数据尾 → READ', target: 'twtr', desc: '总线要从写翻成读，同组还要再等 tWTR。', row: 1 },
+        { from: 16, to: 21, label: 'tCL', kind: 'cyan', caption: 'READ → 读数据首拍', target: 'tcas', desc: '读延迟：读命令到第一拍数据回来。', row: 1 },
+        { from: 21, to: 25, label: 'tBurst', kind: 'orange', caption: 'BL8 读数据窗口', target: 'tburst', desc: '读回来的 8 拍同样占 4 个时钟周期。', row: 1 },
+        { from: 13, to: 25, label: 'tWR', kind: 'violet', caption: '写数据尾 → 允许 PRE', target: 'twr', desc: '写完不能马上关行，要等写恢复时间。', row: 2 },
+        { from: 1, to: 28, label: 'tRAS', kind: 'violet', caption: '行保持到 PRE', target: 'tras', desc: '行激活到允许预充电的最短时间。', row: 3 },
+        { from: 28, to: 32, label: 'tRP', kind: 'muted', caption: 'PRE → 下一次 ACT', target: 'trp', desc: '关行恢复时间。', row: 3 },
+        { from: 1, to: 32, label: 'tRC', kind: 'primary', caption: '同 Bank ACT → ACT', target: 'trc', desc: '整个行周期的总长度，等于 tRAS + tRP。', row: 4 }
       ],
       caption: '点击任意测量标签，可直接进入对应参数的百科页。'
     },
     phases: [
       { code: '01', title: '行激活', time: 'ACT', text: '选行、开行，感测放大器开始工作。', target: 'trcd' },
-      { code: '02', title: '列访问', time: 'READ', text: '选中列，等待读延迟，准备输出数据。', target: 'tcas' },
-      { code: '03', title: '数据突发', time: 'BL8', text: 'DQ 以双沿连续送出 8 拍数据。', target: 'tburst' },
-      { code: '04', title: '关行与再开行', time: 'PRE', text: '满足 tRAS 后关行，再等 tRP 开下一行。', target: 'trc' }
+      { code: '02', title: '写命令', time: 'WRITE', text: '等 tCWL 之后，控制器才把写数据推上总线。', target: 'tcwl' },
+      { code: '03', title: '换向', time: 'TURN', text: '写完掉头读，同组要等 tWTR，异组可以更早。', target: 'twtr' },
+      { code: '04', title: '读命令', time: 'READ', text: '读命令发出，等 tCL 换回数据。', target: 'tcas' },
+      { code: '05', title: '关行与再开行', time: 'PRE', text: '满足 tRAS 与 tWR 后才能关行，再等 tRP 开下一行。', target: 'trc' }
     ]
   };
 

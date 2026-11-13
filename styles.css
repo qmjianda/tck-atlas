@@ -1,5 +1,5 @@
 /* =====================================================================
-   tCK ATLAS — visual system
+   tCK ATLAS 鈥?visual system
    A dark instrumentation panel: thin rules, calibrated labels, warm brass
    for measured time, cool cyan for signals.
    ===================================================================== */
@@ -2071,6 +2071,10 @@ svg {
   display: inline-flex;
 }
 
+.waveform-panel.is-scroll-end .wave-foot .wave-scroll-hint {
+  display: none;
+}
+
 .legend-measure {
   width: 12px;
   height: 5px;
@@ -2343,14 +2347,14 @@ svg {
 }
 
 .callout blockquote::before {
-  content: "“";
+  content: "鈥?;
   margin-right: 1px;
   color: var(--violet);
   opacity: 0.6;
 }
 
 .callout blockquote::after {
-  content: "”";
+  content: "鈥?;
   margin-left: 1px;
   color: var(--violet);
   opacity: 0.6;
@@ -2581,7 +2585,7 @@ svg {
 
 .phase-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 0;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -2662,7 +2666,7 @@ svg {
 
 .formula-band {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   margin-top: 31px;
   border: 1px solid var(--line);
   background: rgba(7, 16, 22, 0.48);
